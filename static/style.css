@@ -1,0 +1,99 @@
+:root {
+  --accent: #39ff6a;
+  --cyan: #56e0ff;
+  --warn: #ffd23f;
+  --loss: #ff5c5c;
+  --dim: #6b7280;
+  --bg: #060a08;
+  --panel-bg: #0b120e;
+  --border: #1c3324;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: #d8ffe6;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 13px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 18px;
+  background: #08120c;
+  border-bottom: 2px solid var(--accent);
+  color: var(--accent);
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.bar.bar-footer, footer.bar {
+  border-bottom: none;
+  border-top: 2px solid var(--accent);
+  font-weight: normal;
+}
+
+.bar-center { color: var(--dim); font-weight: normal; font-size: 12px; }
+.dim { color: var(--dim); }
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 14px;
+  padding: 14px;
+}
+
+.col { display: flex; flex-direction: column; gap: 14px; }
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.panel h2 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.panel h2.accent-cyan { color: var(--cyan); }
+.subtitle { color: var(--dim); font-weight: normal; text-transform: none; font-size: 11px; }
+
+table.kv { width: 100%; border-collapse: collapse; }
+table.kv td { padding: 3px 4px; border-bottom: 1px dashed #14251b; }
+table.kv td:first-child { color: var(--dim); width: 55%; }
+table.kv td:last-child { color: var(--accent); text-align: right; }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.data th {
+  text-align: left;
+  color: var(--dim);
+  font-weight: normal;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px;
+}
+table.data th.num, table.data td.num { text-align: right; }
+table.data td { padding: 4px 6px; border-bottom: 1px solid #101d16; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+
+.side-yes { color: var(--accent); font-weight: bold; }
+.side-no { color: #d972ff; font-weight: bold; }
+.status-dry { color: var(--warn); }
+.status-filled { color: var(--accent); font-weight: bold; }
+.status-error { color: var(--loss); }
+.status-muted { color: var(--dim); }
+.row-dim td { color: var(--dim); }
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+}

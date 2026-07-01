@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket Pipeline — Live Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="bar">
+    <div class="bar-left">POLYMARKET PIPELINE</div>
+    <div class="bar-center">NEWS SCRAPER + AI CONFIDENCE SCORER + AUTO TRADER</div>
+    <div class="bar-right" id="clock">—</div>
+  </header>
+
+  <main class="grid">
+    <section class="col col-left">
+      <div class="panel" id="panel-status">
+        <h2>PIPELINE STATUS</h2>
+        <table class="kv"><tbody id="status-body"></tbody></table>
+      </div>
+
+      <div class="panel" id="panel-performance">
+        <h2 class="accent-cyan">PERFORMANCE</h2>
+        <table class="kv"><tbody id="performance-body"></tbody></table>
+      </div>
+    </section>
+
+    <section class="col col-right">
+      <div class="panel" id="panel-scanner">
+        <h2>MARKET SCANNER <span class="subtitle">· Claude Confidence vs Market Odds</span></h2>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Market</th><th class="num">Mkt$</th><th class="num">Claude</th>
+              <th class="num">Edge</th><th>Side</th><th class="num">Bet</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="scanner-body"></tbody>
+        </table>
+      </div>
+
+      <div class="panel" id="panel-trades">
+        <h2 class="accent-cyan">TRADE LOG <span class="subtitle">· Bets Placed by Pipeline</span></h2>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Time</th><th>Market</th><th>Side</th><th class="num">Bet</th>
+              <th class="num">Edge</th><th class="num">Claude</th><th class="num">Mkt$</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bar">
+    <div class="bar-left" id="headline">Waiting for news feed...</div>
+    <div class="bar-center dim">Auto-refreshing every 5s</div>
+    <div class="bar-right" id="footer-stats">—</div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
