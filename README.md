@@ -25,6 +25,12 @@ V2 inverts all three:
 
 ---
 
+## Also in this repo: MT5 News Trading Bot
+
+`mt5_news_bot/` is a separate, self-contained module unrelated to the Polymarket pipeline above: a MetaTrader 5 bot that places buy-stop/sell-stop straddle orders a few seconds before high-impact economic releases (NFP, CPI, FOMC, ECB/BOE rate decisions), then cancels whichever leg didn't fill. See [`mt5_news_bot/README.md`](mt5_news_bot/README.md) for setup and usage.
+
+---
+
 ## Setup (2 minutes)
 
 ### One-Command Setup
