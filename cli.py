@@ -147,6 +147,14 @@ def cmd_web(args):
     run_web(scan_interval=args.speed, host=args.host, port=args.port)
 
 
+def cmd_options(args):
+    """Launch the options strategy analyzer web app."""
+    from options_web import run_options_web
+    tickers = [t.strip().upper() for t in args.tickers.split(",")] if args.tickers else None
+    console.print(f"[bright_green]Options analyzer running at http://{args.host}:{args.port}[/bright_green]")
+    run_options_web(tickers=tickers, interval=args.interval, host=args.host, port=args.port)
+
+
 def cmd_verify(args):
     """Check all API keys and connections work."""
     from rich.panel import Panel
@@ -414,6 +422,15 @@ def main():
     p_web.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind")
     p_web.add_argument("--port", type=int, default=8000, help="Port to bind")
     p_web.set_defaults(func=cmd_web)
+
+    # options analyzer
+    p_opt = sub.add_parser("options", help="Launch options strategy analyzer web app")
+    p_opt.add_argument("--tickers", type=str, default=None,
+                       help="Comma-separated tickers (default: AAPL,MSFT,NVDA,TSLA,AMZN,GOOGL,META,AMD,SPY,QQQ)")
+    p_opt.add_argument("--interval", type=float, default=600.0, help="Seconds between rescans")
+    p_opt.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind")
+    p_opt.add_argument("--port", type=int, default=8001, help="Port to bind")
+    p_opt.set_defaults(func=cmd_options)
 
     # backtest
     p_bt = sub.add_parser("backtest", help="Backtest V2 strategy")

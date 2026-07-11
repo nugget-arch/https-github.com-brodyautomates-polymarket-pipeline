@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Options Strategy Analyzer — Estadísticas de estrategias reales</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📊</text></svg>">
+<link rel="stylesheet" href="{{ url_for('static', filename='options.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">OPTIONS STRATEGY ANALYZER</div>
+    <div class="topbar-center">MILES DE ESTRATEGIAS CALL/PUT REALES · DATOS CBOE EN DIFERIDO · MODELO LOGNORMAL</div>
+    <div class="topbar-right"><span id="scan-status">cargando…</span></div>
+  </header>
+
+  <main class="wrap">
+    <!-- hero stat tiles -->
+    <section class="tiles" id="tiles" aria-label="Resumen del análisis"></section>
+
+    <!-- filters -->
+    <section class="filters" aria-label="Filtros">
+      <label>Ticker
+        <select id="f-ticker"><option value="">Todos</option></select>
+      </label>
+      <label>Estrategia
+        <select id="f-family"><option value="">Todas</option></select>
+      </label>
+      <label>POP mínima <span id="f-pop-val" class="filter-val">0%</span>
+        <input type="range" id="f-pop" min="0" max="90" step="5" value="0">
+      </label>
+      <label>Ordenar ranking por
+        <select id="f-sort">
+          <option value="score">Score compuesto</option>
+          <option value="ev">Valor esperado ($)</option>
+          <option value="ev_pct">Retorno sobre capital</option>
+          <option value="pop">Probabilidad de beneficio</option>
+          <option value="max_profit">Máximo beneficio</option>
+        </select>
+      </label>
+      <div class="filter-note" id="filter-count"></div>
+    </section>
+
+    <!-- main charts -->
+    <section class="charts-row">
+      <div class="panel panel-scatter">
+        <h2>POP × Retorno esperado <span class="sub">cada punto es una estrategia real</span></h2>
+        <div class="legend" id="scatter-legend"></div>
+        <div class="chart-box"><canvas id="scatter"></canvas></div>
+      </div>
+      <div class="panel-stack">
+        <div class="panel">
+          <h2>Distribución del valor esperado <span class="sub">$ por contrato al vencimiento</span></h2>
+          <div class="chart-box chart-box-sm"><canvas id="ev-hist"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Distribución de la probabilidad de beneficio</h2>
+          <div class="chart-box chart-box-sm"><canvas id="pop-hist"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- heatmap + family stats -->
+    <section class="charts-row">
+      <div class="panel">
+        <h2>Mediana de retorno por ticker × estrategia <span class="sub">rojo = negativo · azul = positivo</span></h2>
+        <div class="chart-box chart-box-heat"><canvas id="heatmap"></canvas></div>
+      </div>
+      <div class="panel">
+        <h2>Estadísticas por familia de estrategia</h2>
+        <div class="table-scroll">
+          <table class="data-table" id="family-table">
+            <thead><tr>
+              <th>Estrategia</th><th class="num">N</th><th class="num">EV mediana</th>
+              <th class="num">POP media</th><th class="num">% EV&gt;0</th><th class="num">Mejor EV</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- payoff + ranking -->
+    <section class="charts-row">
+      <div class="panel">
+        <h2 id="payoff-title">Diagrama de payoff <span class="sub">selecciona una estrategia del ranking</span></h2>
+        <div class="chart-box"><canvas id="payoff"></canvas></div>
+        <div class="payoff-meta" id="payoff-meta"></div>
+      </div>
+      <div class="panel">
+        <h2>Ranking de estrategias <span class="sub">clic en una fila para ver su payoff</span></h2>
+        <div class="table-scroll table-scroll-tall">
+          <table class="data-table" id="top-table">
+            <thead><tr>
+              <th>Estrategia</th><th>Ticker</th><th class="num">Venc.</th><th class="num">EV</th>
+              <th class="num">POP</th><th class="num">Máx +</th><th class="num">Máx −</th><th class="num">ROC</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- per-ticker overview -->
+    <section class="charts-row">
+      <div class="panel panel-full">
+        <h2>Universo analizado por subyacente</h2>
+        <div class="table-scroll">
+          <table class="data-table" id="ticker-table">
+            <thead><tr>
+              <th>Ticker</th><th class="num">Spot</th><th class="num">IV30</th>
+              <th class="num">Contratos</th><th class="num">Vencimientos</th><th class="num">Estrategias</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p><strong>Supuestos del modelo:</strong> entrada a precio medio bid/ask; distribución terminal lognormal
+      parametrizada con la IV at-the-money de cada vencimiento (el skew no está modelado — los retornos esperados
+      en strikes alejados reflejan en parte esa discrepancia). Datos en diferido de CBOE; solo contratos con
+      mercado real (open interest o volumen). Solo con fines educativos — no es asesoramiento financiero.</p>
+    </footer>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="status" aria-hidden="true"></div>
+  <script src="{{ url_for('static', filename='options.js') }}"></script>
+</body>
+</html>

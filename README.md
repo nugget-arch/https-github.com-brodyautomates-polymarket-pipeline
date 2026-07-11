@@ -106,6 +106,20 @@ python cli.py web --host 0.0.0.0 --port 9000 --speed 30
 
 The page polls `/api/state` every 5 seconds; no manual refresh needed.
 
+### Options Strategy Analyzer
+
+A separate web app that analyzes **tens of thousands of real call/put strategies** built from live CBOE delayed options chains (no API key needed). For every underlying it enumerates long calls/puts, covered calls, cash-secured puts, debit/credit verticals, straddles, strangles and iron condors, then computes probability of profit, expected value (lognormal terminal distribution), breakevens, max profit/loss, return on capital and net greeks per strategy.
+
+```bash
+python cli.py options
+# open http://127.0.0.1:8001
+
+# custom tickers and rescan interval
+python cli.py options --tickers AAPL,NVDA,SPY --interval 300
+```
+
+The dashboard shows: hero stats, a POP × expected-return scatter of every strategy, EV and POP distributions, a ticker × strategy heatmap, per-family statistics, and an interactive payoff diagram linked to a filterable ranking table.
+
 ### Backtest
 
 ```bash
@@ -123,6 +137,7 @@ python cli.py backtest --limit 50 --category ai
 | `python cli.py run` | V1: Synchronous RSS-based pipeline |
 | `python cli.py dashboard` | Live terminal dashboard |
 | `python cli.py web` | Live browser dashboard (Flask) |
+| `python cli.py options` | Options strategy analyzer web app |
 | `python cli.py backtest` | Backtest against resolved markets |
 | `python cli.py calibrate` | Classification accuracy report |
 | `python cli.py niche` | Browse niche markets (volume-filtered) |
@@ -157,8 +172,10 @@ logger.py           SQLite — trades, news events, calibration, latency trackin
 config.py           All settings, API keys, thresholds
 dashboard.py        Bloomberg Terminal-style live terminal dashboard
 webapp.py           Flask app serving the same dashboard in the browser
-templates/          HTML template for the web dashboard
-static/             CSS + JS for the web dashboard (polls /api/state)
+options_analyzer.py Options engine — CBOE chains, strategy generation, stats
+options_web.py      Flask app for the options strategy analyzer
+templates/          HTML templates for both web dashboards
+static/             CSS + JS for both web dashboards
 cli.py              CLI — watch, run, backtest, calibrate, niche, verify, etc.
 ```
 
