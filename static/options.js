@@ -610,6 +610,146 @@ function renderSmile() {
   canvas.onmouseleave = hideTip;
 }
 
+/* ------------------------------------------------------- Monte Carlo sim */
+function sampleTerminal(quantiles, u) {
+  // quantiles: 101 prices at cumulative probs 0.005..0.995
+  const x = u * (quantiles.length - 1);
+  const i = Math.min(Math.floor(x), quantiles.length - 2);
+  return quantiles[i] + (quantiles[i + 1] - quantiles[i]) * (x - i);
+}
+
+function runSimulation() {
+  const capital = Math.max(parseFloat($("sim-capital").value) || 0, 0);
+  const ticker = $("sim-ticker").value;
+  const nWanted = parseInt($("sim-n").value, 10);
+  const dens = DATA.densities || {};
+
+  // N best executable picks for the chosen underlying (or overall)
+  const pool = (DATA.top_picks || []).filter(r =>
+    (!ticker || r.ticker === ticker) && dens[r.ticker] && dens[r.ticker][r.expiry]);
+  const picks = pool.slice(0, nWanted);
+  if (!picks.length) {
+    $("sim-note").textContent = "No hay oportunidades ejecutables para ese activo en este escaneo.";
+    $("sim-summary").innerHTML = "";
+    $("sim-table").querySelector("tbody").innerHTML = "";
+    prep($("sim-hist"));
+    return;
+  }
+
+  // equal-budget sizing: whole contracts only
+  const budget = capital / picks.length;
+  const positions = picks
+    .map(r => ({ r, contracts: Math.floor(budget / Math.max(r.capital, 1)) }))
+    .filter(p => p.contracts >= 1);
+  const deployed = positions.reduce((a, p) => a + p.contracts * p.r.capital, 0);
+
+  if (!positions.length) {
+    $("sim-note").textContent = `Con ${fmt$(capital)} no cubres ni una posición (la más barata requiere ${fmt$(Math.min(...picks.map(r => r.capital)))}).`;
+    $("sim-summary").innerHTML = "";
+    $("sim-table").querySelector("tbody").innerHTML = "";
+    prep($("sim-hist"));
+    return;
+  }
+
+  // 10,000 trials; same-ticker positions share one uniform draw per trial
+  // (comonotonic across expiries), different tickers draw independently
+  const TRIALS = 10000;
+  const finals = new Float64Array(TRIALS);
+  for (let t = 0; t < TRIALS; t++) {
+    const uByTicker = {};
+    let pl = 0;
+    for (const p of positions) {
+      const tk = p.r.ticker;
+      if (uByTicker[tk] === undefined) uByTicker[tk] = Math.random();
+      const S = sampleTerminal(dens[tk][p.r.expiry], uByTicker[tk]);
+      pl += p.contracts * (payoffAt(p.r, S) - p.r.slippage);
+    }
+    finals[t] = capital + pl;
+  }
+
+  const sorted = Array.from(finals).sort((a, b) => a - b);
+  const q = p => sorted[Math.min(Math.floor(p * TRIALS), TRIALS - 1)];
+  const mean = sorted.reduce((a, v) => a + v, 0) / TRIALS;
+  const probWin = sorted.filter(v => v > capital).length / TRIALS;
+
+  $("sim-note").textContent = `${positions.length} posiciones · ${fmt$(deployed)} desplegados de ${fmt$(capital)}`;
+  $("sim-summary").innerHTML = [
+    { label: "Capital final medio", value: fmt$(mean), cls: mean >= capital ? "pos" : "neg", detail: `${((mean / capital - 1) * 100).toFixed(1)}% sobre inicial` },
+    { label: "Mediana", value: fmt$(q(0.5)), cls: q(0.5) >= capital ? "pos" : "neg", detail: "escenario central" },
+    { label: "Prob. de acabar en verde", value: fmtPct(probWin), cls: probWin >= 0.5 ? "pos" : "neg", detail: "capital final > inicial" },
+    { label: "Percentil 5 (malo)", value: fmt$(q(0.05)), cls: "neg", detail: "1 de cada 20 veces peor" },
+    { label: "Percentil 95 (bueno)", value: fmt$(q(0.95)), cls: "pos", detail: "1 de cada 20 veces mejor" },
+    { label: "Peor / mejor de 10.000", value: `${fmt$(sorted[0])}`, cls: "neg", detail: `mejor: ${fmt$(sorted[TRIALS - 1])}` },
+  ].map(t => `
+    <div class="tile" style="padding:10px 12px">
+      <div class="t-label">${t.label}</div>
+      <div class="t-value ${t.cls || ""}" style="font-size:19px">${t.value}</div>
+      <div class="t-detail">${t.detail}</div>
+    </div>`).join("");
+
+  // histogram of final capital, with the starting-capital marker
+  const lo = q(0.005), hi = q(0.995);
+  const BINS = 45;
+  const counts = new Array(BINS).fill(0);
+  for (const v of sorted) {
+    const i = Math.min(Math.max(Math.floor((v - lo) / (hi - lo) * BINS), 0), BINS - 1);
+    counts[i]++;
+  }
+  const { ctx, w, h } = prep($("sim-hist"));
+  const pad = { l: 46, r: 12, t: 10, b: 28 };
+  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const maxC = Math.max(...counts, 1);
+  const bw = iw / BINS;
+  for (let i = 0; i < BINS; i++) {
+    const bh = counts[i] / maxC * ih;
+    const binLo = lo + (hi - lo) * i / BINS;
+    ctx.fillStyle = binLo >= capital ? GOOD : CRITICAL;
+    ctx.beginPath();
+    ctx.roundRect(pad.l + i * bw + 1, pad.t + ih - bh, Math.max(bw - 2, 1), Math.max(bh, 0), [3, 3, 0, 0]);
+    ctx.fill();
+  }
+  ctx.strokeStyle = BASELINE; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t + ih); ctx.lineTo(w - pad.r, pad.t + ih); ctx.stroke();
+  // starting-capital marker
+  const xCap = pad.l + (capital - lo) / (hi - lo) * iw;
+  if (xCap >= pad.l && xCap <= pad.l + iw) {
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(xCap, pad.t); ctx.lineTo(xCap, pad.t + ih); ctx.stroke();
+    ctx.setLineDash([]);
+    axisText(ctx);
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText("inicial " + fmt$(capital), xCap, pad.t + 10);
+  }
+  axisText(ctx);
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const t of niceTicks(lo, hi, 6)) ctx.fillText("$" + Math.round(t).toLocaleString("es"), pad.l + (t - lo) / (hi - lo) * iw, pad.t + ih + 5);
+
+  const canvas = $("sim-hist");
+  canvas.onmousemove = e => {
+    const r = canvas.getBoundingClientRect();
+    const i = Math.floor((e.clientX - r.left - pad.l) / bw);
+    if (i >= 0 && i < BINS) {
+      const bLo = lo + (hi - lo) * i / BINS, bHi = lo + (hi - lo) * (i + 1) / BINS;
+      showTip(`<div class="tt-row"><b>${(counts[i] / TRIALS * 100).toFixed(1)}%</b> de escenarios</div>
+        <div class="tt-row">acaban entre ${fmt$(bLo)} y ${fmt$(bHi)}</div>`, e.clientX, e.clientY);
+    } else hideTip();
+  };
+  canvas.onmouseleave = hideTip;
+
+  // positions table
+  $("sim-table").querySelector("tbody").innerHTML = positions.map(p => {
+    const fam = FAMILY_BY_KEY[p.r.family];
+    return `<tr>
+      <td><span class="chip" style="background:${fam.color}"></span>${p.r.ticker} ${p.r.name}</td>
+      <td class="num">${p.r.dte}d</td>
+      <td class="num">${p.contracts}</td>
+      <td class="num">${fmt$(p.contracts * p.r.capital)}</td>
+      <td class="num">${fmtPct(p.r.pop_exec)}</td>
+      <td class="num pos">${fmt$(p.contracts * p.r.ev_exec)}</td>
+    </tr>`;
+  }).join("");
+}
+
 /* -------------------------------------------------------------- CSV export */
 function exportCSV() {
   const rows = DATA.top_picks || [];
@@ -702,6 +842,10 @@ function populateFilters() {
   const smileSel = $("smile-ticker");
   smileSel.innerHTML = Object.keys(DATA.smiles || {})
     .map(t => `<option value="${t}">${t}</option>`).join("");
+  // simulator: only tickers that actually have executable picks
+  const pickTickers = [...new Set((DATA.top_picks || []).map(r => r.ticker))];
+  $("sim-ticker").innerHTML = '<option value="">Todos (independientes)</option>' +
+    pickTickers.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
 function renderAll() {
@@ -731,6 +875,7 @@ function rerenderFiltered() {
   $(id).addEventListener("input", () => { if (DATA) buildPortfolio(); }));
 $("smile-ticker").addEventListener("change", () => { if (DATA) renderSmile(); });
 $("csv-btn").addEventListener("click", () => { if (DATA) exportCSV(); });
+$("sim-btn").addEventListener("click", () => { if (DATA) runSimulation(); });
 $("f-pop").addEventListener("input", () => {
   $("f-pop-val").textContent = $("f-pop").value + "%";
   rerenderFiltered();

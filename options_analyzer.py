@@ -406,9 +406,22 @@ def _pick(contracts: list[Contract], step: int = 1) -> list[Contract]:
     return contracts[::step]
 
 
-def generate_strategies(ticker: str, spot: float, chains: dict) -> list[Strategy]:
-    """Enumerate candidate strategies for one underlying."""
+def _quantiles(prices: np.ndarray, weights: np.ndarray, n: int = 101) -> list[float]:
+    """Quantile function of the terminal density, for Monte Carlo sampling."""
+    cw = np.cumsum(weights)
+    qs = np.linspace(0.005, 0.995, n)
+    return [round(float(np.interp(q, cw, prices)), 2) for q in qs]
+
+
+def generate_strategies(ticker: str, spot: float, chains: dict
+                        ) -> tuple[list[Strategy], dict[str, list[float]]]:
+    """Enumerate candidate strategies for one underlying.
+
+    Also returns the quantile function of each expiry's terminal density so
+    the frontend can Monte Carlo-sample consistent terminal prices.
+    """
     out: list[Strategy] = []
+    densities: dict[str, list[float]] = {}
 
     for expiry, sides in chains.items():
         calls, puts = sides["C"], sides["P"]
@@ -424,6 +437,7 @@ def generate_strategies(ticker: str, spot: float, chains: dict) -> list[Strategy
         sigma = float(np.median(atm_ivs)) if atm_ivs else 0.3
         forward = _implied_forward(spot, calls, puts)
         prices, weights, _used_smile = _market_density(forward, sigma, t_years, calls, puts)
+        densities[expiry] = _quantiles(prices, weights)
 
         def make(family, name, legs, stock_qty=0):
             s = Strategy(family=family, name=name, ticker=ticker, spot=spot,
@@ -498,7 +512,7 @@ def generate_strategies(ticker: str, spot: float, chains: dict) -> list[Strategy
                          f"Iron Condor {wing_p.strike:g}/{sp.strike:g}/{sc.strike:g}/{wing_c.strike:g}",
                          [Leg(sp, -1), Leg(wing_p, +1), Leg(sc, -1), Leg(wing_c, +1)])
 
-    return out
+    return out, densities
 
 
 # ---------------------------------------------------------------- full scan
@@ -510,6 +524,7 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
     all_strategies: list[Strategy] = []
     ticker_meta: list[dict] = []
     smiles: dict[str, dict] = {}
+    all_densities: dict[str, dict] = {}
     contracts_total = 0
     errors: list[str] = []
 
@@ -523,8 +538,9 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
             contracts_total += n_contracts
             if on_progress:
                 on_progress(f"Generating strategies for {ticker} ({n_contracts} contracts)...")
-            strategies = generate_strategies(ticker, spot, chains)
+            strategies, densities = generate_strategies(ticker, spot, chains)
             all_strategies.extend(strategies)
+            all_densities[ticker] = densities
             ticker_meta.append({
                 "ticker": ticker, "spot": spot, "iv30": iv30,
                 "contracts": n_contracts, "expirations": len(chains),
@@ -539,6 +555,7 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
     result = _aggregate(all_strategies, ticker_meta, contracts_total,
                         time.time() - started, errors)
     result["smiles"] = smiles
+    result["densities"] = all_densities
     return result
 
 
