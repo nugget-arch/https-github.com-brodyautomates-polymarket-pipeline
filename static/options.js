@@ -444,6 +444,94 @@ function renderPayoff(row) {
     <span>Legs <b>${row.legs}</b></span>`;
 }
 
+/* ------------------------------------------------- top picks + portfolio */
+function renderPicksTable() {
+  const rows = DATA.top_picks || [];
+  const tbody = $("picks-table").querySelector("tbody");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="status-muted">Ninguna estrategia pasa el filtro de consistencia en este escaneo.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => {
+    const fam = FAMILY_BY_KEY[r.family];
+    return `<tr data-i="${i}">
+      <td><span class="chip" style="background:${fam.color}"></span>${r.name}</td>
+      <td>${r.ticker}</td>
+      <td class="num">${r.dte}d</td>
+      <td class="num">${fmtPct(r.pop_exec)}</td>
+      <td class="num pos">${fmt$(r.ev_exec)}</td>
+      <td class="num">${fmt$(r.capital)}</td>
+      <td class="num pos">${fmtPct(r.roc_annual_exec)}</td>
+      <td class="num neg">${fmt$(r.max_loss)}</td>
+    </tr>`;
+  }).join("");
+  tbody.querySelectorAll("tr").forEach(tr => {
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", () => {
+      selectedRow = rows[parseInt(tr.dataset.i, 10)];
+      renderPayoff(selectedRow);
+      document.querySelector("#payoff-title").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  });
+}
+
+function buildPortfolio() {
+  const bankroll = Math.max(parseFloat($("bankroll").value) || 0, 0);
+  const maxPosFrac = parseFloat($("max-pos").value);
+  const maxPerPos = bankroll * maxPosFrac;
+  const maxPerTicker = bankroll * Math.max(maxPosFrac, 0.25);
+
+  const picks = DATA.top_picks || [];
+  const positions = [];
+  const tickerUsed = {};
+  let used = 0;
+
+  for (const r of picks) {
+    if (r.capital > maxPerPos) continue;
+    if ((tickerUsed[r.ticker] || 0) + r.capital > maxPerTicker) continue;
+    if (used + r.capital > bankroll) continue;
+    positions.push(r);
+    tickerUsed[r.ticker] = (tickerUsed[r.ticker] || 0) + r.capital;
+    used += r.capital;
+    if (positions.length >= 12) break;
+  }
+
+  const totalEV = positions.reduce((a, r) => a + r.ev_exec, 0);
+  const monthlyEV = positions.reduce((a, r) => a + r.ev_exec * 30.44 / r.dte, 0);
+  const worstCase = positions.reduce((a, r) => a + r.max_loss, 0);
+  const avgPop = positions.length ? positions.reduce((a, r) => a + r.pop_exec, 0) / positions.length : 0;
+
+  $("portfolio-summary").innerHTML = [
+    { label: "Capital usado", value: fmt$(used), detail: `de ${fmt$(bankroll)}` },
+    { label: "EV total", value: fmt$(totalEV), cls: totalEV >= 0 ? "pos" : "neg", detail: "al vencimiento (modelo)" },
+    { label: "EV mensual", value: fmt$(monthlyEV), cls: "pos", detail: "normalizado a 30 días" },
+    { label: "Peor caso", value: fmt$(worstCase), cls: "neg", detail: "todas las posiciones en contra" },
+    { label: "POP media", value: fmtPct(avgPop), detail: `${positions.length} posiciones` },
+  ].map(t => `
+    <div class="tile" style="padding:10px 12px">
+      <div class="t-label">${t.label}</div>
+      <div class="t-value ${t.cls || ""}" style="font-size:19px">${t.value}</div>
+      <div class="t-detail">${t.detail}</div>
+    </div>`).join("");
+
+  const tbody = $("portfolio-table").querySelector("tbody");
+  if (!positions.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="status-muted">Capital insuficiente para las oportunidades disponibles — sube el capital o el % por posición.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = positions.map(r => {
+    const fam = FAMILY_BY_KEY[r.family];
+    return `<tr>
+      <td><span class="chip" style="background:${fam.color}"></span>${r.name} · ${r.dte}d</td>
+      <td>${r.ticker}</td>
+      <td class="num">${fmtPct(r.pop_exec)}</td>
+      <td class="num">${fmt$(r.capital)}</td>
+      <td class="num pos">${fmt$(r.ev_exec)}</td>
+      <td class="num neg">${fmt$(r.max_loss)}</td>
+    </tr>`;
+  }).join("");
+}
+
 /* ----------------------------------------------------------------- tables */
 function renderFamilyTable() {
   const tbody = $("family-table").querySelector("tbody");
@@ -520,6 +608,8 @@ function populateFilters() {
 
 function renderAll() {
   renderTiles();
+  renderPicksTable();
+  buildPortfolio();
   renderScatter();
   renderHistogram("ev-hist", DATA.ev_histogram, v => "$" + Math.round(v), "#3987e5");
   renderHistogram("pop-hist", DATA.pop_histogram, v => fmtPct(v, 0), "#199e70");
@@ -538,6 +628,8 @@ function rerenderFiltered() {
 
 ["f-ticker", "f-family", "f-sort"].forEach(id =>
   $(id).addEventListener("change", rerenderFiltered));
+["bankroll", "max-pos"].forEach(id =>
+  $(id).addEventListener("input", () => { if (DATA) buildPortfolio(); }));
 $("f-pop").addEventListener("input", () => {
   $("f-pop-val").textContent = $("f-pop").value + "%";
   rerenderFiltered();

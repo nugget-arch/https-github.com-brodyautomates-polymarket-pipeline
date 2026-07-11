@@ -18,6 +18,51 @@
     <!-- hero stat tiles -->
     <section class="tiles" id="tiles" aria-label="Resumen del análisis"></section>
 
+    <!-- top picks + portfolio builder -->
+    <section class="charts-row">
+      <div class="panel">
+        <h2>Mejores oportunidades <span class="sub">a precios ejecutables (bid/ask) · POP ≥ 65% · EV positivo · riesgo definido · retorno anual 8–300%</span></h2>
+        <div class="table-scroll table-scroll-tall">
+          <table class="data-table" id="picks-table">
+            <thead><tr>
+              <th>Estrategia</th><th>Ticker</th><th class="num">Venc.</th><th class="num">POP</th>
+              <th class="num">EV</th><th class="num">Capital</th><th class="num">Ret. anual</th><th class="num">Máx −</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Constructor de cartera <span class="sub">asignación diversificada sobre las mejores oportunidades</span></h2>
+        <div class="filters" style="border:none;padding:8px 0 12px">
+          <label>Tu capital ($)
+            <input type="number" id="bankroll" value="10000" min="500" step="500" style="font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;width:140px">
+          </label>
+          <label>Máx. por posición
+            <select id="max-pos">
+              <option value="0.15">15% del capital</option>
+              <option value="0.25" selected>25% del capital</option>
+              <option value="0.40">40% del capital</option>
+            </select>
+          </label>
+        </div>
+        <div class="tiles" id="portfolio-summary" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:10px"></div>
+        <div class="table-scroll">
+          <table class="data-table" id="portfolio-table">
+            <thead><tr>
+              <th>Posición</th><th>Ticker</th><th class="num">POP</th><th class="num">Capital</th>
+              <th class="num">EV</th><th class="num">Peor caso</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="foot" style="border:none;padding-top:8px;margin:6px 0 0">
+          ⚠ EV según el modelo (lognormal, sin skew) — no es una garantía de beneficio. Vender opciones de alta
+          probabilidad significa pérdidas grandes e infrecuentes: el "peor caso" mostrado puede ocurrir.
+        </p>
+      </div>
+    </section>
+
     <!-- filters -->
     <section class="filters" aria-label="Filtros">
       <label>Ticker

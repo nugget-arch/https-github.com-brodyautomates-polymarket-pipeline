@@ -29,7 +29,11 @@ import numpy as np
 
 CBOE_URL = "https://cdn.cboe.com/api/global/delayed_quotes/options/{symbol}.json"
 
-DEFAULT_TICKERS = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "AMD", "SPY", "QQQ"]
+DEFAULT_TICKERS = [
+    "AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "AMD", "SPY", "QQQ",
+    "NFLX", "AVGO", "JPM", "BAC", "XOM", "COIN", "PLTR", "INTC", "MU", "ORCL",
+    "DIS", "BA", "IWM", "CRM",
+]
 
 # Universe constraints
 MIN_DTE = 7           # days to expiration
@@ -89,6 +93,10 @@ class Strategy:
     pop: float = 0.0             # probability of profit
     expected_value: float = 0.0  # per contract (x100 shares)
     ev_pct: float = 0.0          # EV / capital
+    # execution-adjusted (enter long legs at ask, short legs at bid)
+    slippage: float = 0.0        # total half-spread cost vs mid, dollars
+    pop_exec: float = 0.0
+    ev_exec: float = 0.0
     net_delta: float = 0.0
     net_gamma: float = 0.0
     net_theta: float = 0.0
@@ -291,6 +299,15 @@ def evaluate(strategy: Strategy, prices: np.ndarray, weights: np.ndarray,
     strategy.expected_value = float((payoff * weights).sum()) * 100
     strategy.ev_pct = strategy.expected_value / strategy.capital if strategy.capital > 0 else 0.0
 
+    # Execution-adjusted stats: mid is not a fillable price. Entering long
+    # legs at ask and short legs at bid costs one half-spread per leg, which
+    # shifts the whole P/L curve down by a constant.
+    half_spreads = sum(abs(leg.qty) * (leg.contract.ask - leg.contract.bid) / 2
+                       for leg in strategy.legs)
+    strategy.slippage = half_spreads * 100
+    strategy.ev_exec = strategy.expected_value - strategy.slippage
+    strategy.pop_exec = float(weights[payoff > half_spreads].sum())
+
     # breakevens: exact roots of the piecewise-linear payoff. Kinks only at
     # strikes, so solve each linear segment (plus the tail to infinity).
     kinks = [0.0] + sorted({leg.contract.strike for leg in strategy.legs})
@@ -460,6 +477,11 @@ def _strategy_row(s: Strategy) -> dict:
         "pop": round(s.pop, 4),
         "ev": round(s.expected_value, 2),
         "ev_pct": round(s.ev_pct, 4),
+        "roc_annual": round(s.ev_pct * 365.0 / max(s.dte, 1.0), 4),
+        "slippage": round(s.slippage, 2),
+        "pop_exec": round(s.pop_exec, 4),
+        "ev_exec": round(s.ev_exec, 2),
+        "roc_annual_exec": round((s.ev_exec / s.capital) * 365.0 / max(s.dte, 1.0), 4) if s.capital > 0 else 0.0,
         "delta": round(s.net_delta, 3), "gamma": round(s.net_gamma, 4),
         "theta": round(s.net_theta, 3), "vega": round(s.net_vega, 3),
         "score": round(s.score, 4),
@@ -530,6 +552,34 @@ def _aggregate(strategies: list[Strategy], ticker_meta: list[dict],
                 "ev": round(s.expected_value, 2), "dte": s.dte,
             })
 
+    # "top picks": consistency-profile screen at EXECUTABLE prices (long legs
+    # at ask, short at bid) — mid-price mirages on wide-spread contracts do
+    # not qualify. High probability of profit, positive executable EV,
+    # defined risk, meaningful annualized return, and a per-ticker diversity
+    # cap so the list is investable as a portfolio.
+    def roc_annual_exec(s: Strategy) -> float:
+        return (s.ev_exec / s.capital) * 365.0 / max(s.dte, 1.0) if s.capital > 0 else 0.0
+
+    picks_pool = [
+        s for s in strategies
+        if s.pop_exec >= 0.65
+        and s.ev_exec > 0
+        and not math.isinf(s.max_profit) and not math.isinf(-s.max_loss)
+        and s.capital <= 30000
+        and 0.08 <= roc_annual_exec(s) <= 3.0   # >300%/yr "sure things" are data artifacts
+        and s.dte >= 10
+    ]
+    picks_pool.sort(key=lambda s: s.pop_exec * roc_annual_exec(s), reverse=True)
+    top_picks = []
+    per_ticker: dict[str, int] = {}
+    for s in picks_pool:
+        if per_ticker.get(s.ticker, 0) >= 6:
+            continue
+        per_ticker[s.ticker] = per_ticker.get(s.ticker, 0) + 1
+        top_picks.append(_strategy_row(s))
+        if len(top_picks) >= 80:
+            break
+
     # top strategies by composite score (and worst, for honesty).
     # Top 400 overall, plus the best 20 per (family, ticker) so client-side
     # filters always have depth regardless of which families dominate.
@@ -572,6 +622,7 @@ def _aggregate(strategies: list[Strategy], ticker_meta: list[dict],
         "heatmap": {"tickers": tickers, "families": STRATEGY_FAMILIES, "cells": heat},
         "family_stats": family_stats,
         "scatter": scatter,
+        "top_picks": top_picks,
         "top_strategies": top,
         "worst_strategies": worst,
         "errors": errors,
