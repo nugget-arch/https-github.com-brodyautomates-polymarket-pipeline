@@ -108,7 +108,7 @@ The page polls `/api/state` every 5 seconds; no manual refresh needed.
 
 ### Options Strategy Analyzer
 
-A separate web app that analyzes **tens of thousands of real call/put strategies** built from live CBOE delayed options chains (no API key needed). For every underlying it enumerates long calls/puts, covered calls, cash-secured puts, debit/credit verticals, straddles, strangles and iron condors, then computes probability of profit, expected value (lognormal terminal distribution), breakevens, max profit/loss, return on capital and net greeks per strategy.
+A separate web app that analyzes **~160,000 real call/put strategies** built from live CBOE delayed options chains (no API key needed) across 24 liquid underlyings. For every underlying it enumerates long calls/puts, covered calls, cash-secured puts, debit/credit verticals, straddles, strangles and iron condors, then computes probability of profit and expected value against the **market-implied terminal density** (Breeden-Litzenberger on the observed IV smile — skew included; lognormal fallback for sparse smiles), exact breakevens, analytic max profit/loss, CVaR 5%, return on capital and net greeks. A top-picks screen re-prices everything at executable bid/ask fills and a portfolio builder allocates a user-supplied bankroll across diversified picks.
 
 ```bash
 python cli.py options

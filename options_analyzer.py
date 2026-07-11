@@ -40,7 +40,7 @@ MIN_DTE = 7           # days to expiration
 MAX_DTE = 120
 STRIKE_BAND = 0.25    # only strikes within ±25% of spot
 MAX_SPREAD_PCT = 0.60 # discard contracts whose bid/ask spread is >60% of mid
-GRID_POINTS = 240     # integration grid resolution
+GRID_POINTS = 320     # integration grid resolution
 
 OCC_RE = re.compile(r"^([A-Z^]+)(\d{6})([CP])(\d{8})$")
 
@@ -97,6 +97,7 @@ class Strategy:
     slippage: float = 0.0        # total half-spread cost vs mid, dollars
     pop_exec: float = 0.0
     ev_exec: float = 0.0
+    cvar5: float = 0.0           # expected P/L in the worst 5% of scenarios
     net_delta: float = 0.0
     net_gamma: float = 0.0
     net_theta: float = 0.0
@@ -221,6 +222,67 @@ def _terminal_grid(forward: float, sigma: float, t_years: float) -> tuple[np.nda
     return prices, weights
 
 
+_erf_vec = np.frompyfunc(math.erf, 1, 1)
+
+
+def _norm_cdf(x: np.ndarray) -> np.ndarray:
+    return 0.5 * (1.0 + _erf_vec(x / math.sqrt(2)).astype(float))
+
+
+def _market_density(forward: float, sigma_atm: float, t_years: float,
+                    calls: list[Contract], puts: list[Contract]
+                    ) -> tuple[np.ndarray, np.ndarray, bool]:
+    """
+    Market-implied terminal density via Breeden-Litzenberger: the density is
+    the second derivative of the call-price curve C(K). We build C(K) from
+    Black-76 with the OBSERVED IV smile (OTM puts below the forward, OTM
+    calls above, lightly smoothed, flat-extrapolated), then differentiate
+    numerically. This bakes the market's skew into every probability instead
+    of assuming a single lognormal.
+
+    Returns (prices, weights, used_smile). Falls back to the lognormal grid
+    when the smile is too sparse or the resulting density is degenerate.
+    """
+    smile = [(p.strike, p.iv) for p in puts if p.strike <= forward]
+    smile += [(c.strike, c.iv) for c in calls if c.strike > forward]
+    smile.sort()
+    if len(smile) < 6:
+        prices, weights = _terminal_grid(forward, sigma_atm, t_years)
+        return prices, weights, False
+
+    ks = np.array([k for k, _ in smile], dtype=float)
+    ivs = np.array([v for _, v in smile], dtype=float)
+    if len(ivs) >= 7:  # light 3-point smoothing, endpoints kept
+        inner = np.convolve(ivs, np.ones(3) / 3, mode="valid")
+        ivs = np.concatenate([[ivs[0]], inner, [ivs[-1]]])
+
+    sd = max(sigma_atm * math.sqrt(max(t_years, 1e-6)), 1e-4)
+    prices = np.linspace(forward * math.exp(-4 * sd), forward * math.exp(4 * sd), GRID_POINTS)
+    iv_k = np.clip(np.interp(prices, ks, ivs), 0.01, 4.0)
+
+    # Black-76 call prices on the strike grid (discount factor irrelevant for
+    # the normalized density)
+    st = iv_k * math.sqrt(max(t_years, 1e-6))
+    d1 = (np.log(forward / prices) + 0.5 * st * st) / st
+    d2 = d1 - st
+    call_prices = forward * _norm_cdf(d1) - prices * _norm_cdf(d2)
+
+    dk = prices[1] - prices[0]
+    density = np.gradient(np.gradient(call_prices, dk), dk)
+    density = np.clip(density, 0.0, None)
+    total = density.sum() * dk
+    if total <= 0:
+        p2, w2 = _terminal_grid(forward, sigma_atm, t_years)
+        return p2, w2, False
+    weights = density * dk / total
+
+    # sanity: the density must reprice the forward within 2%
+    if abs(float((prices * weights).sum()) - forward) / forward > 0.02:
+        p2, w2 = _terminal_grid(forward, sigma_atm, t_years)
+        return p2, w2, False
+    return prices, weights, True
+
+
 def _leg_payoff(prices: np.ndarray, leg: Leg) -> np.ndarray:
     c = leg.contract
     if c.kind == "C":
@@ -308,6 +370,15 @@ def evaluate(strategy: Strategy, prices: np.ndarray, weights: np.ndarray,
     strategy.ev_exec = strategy.expected_value - strategy.slippage
     strategy.pop_exec = float(weights[payoff > half_spreads].sum())
 
+    # CVaR 5%: probability-weighted mean P/L over the worst 5% of scenarios
+    order = np.argsort(payoff)
+    cum = np.cumsum(weights[order])
+    tail = cum <= 0.05
+    if not tail.any():
+        tail[0] = True
+    tw = weights[order][tail]
+    strategy.cvar5 = float((payoff[order][tail] * tw).sum() / tw.sum()) * 100
+
     # breakevens: exact roots of the piecewise-linear payoff. Kinks only at
     # strikes, so solve each linear segment (plus the tail to infinity).
     kinks = [0.0] + sorted({leg.contract.strike for leg in strategy.legs})
@@ -346,12 +417,13 @@ def generate_strategies(ticker: str, spot: float, chains: dict) -> list[Strategy
         dte = (calls or puts)[0].dte
         t_years = dte / 365.0
 
-        # shared grid per (ticker, expiry): ATM iv as sigma, centered on the
-        # market-implied forward (put-call parity) rather than spot
+        # shared grid per (ticker, expiry): market-implied density built from
+        # the observed IV smile (Breeden-Litzenberger), centered on the
+        # put-call-parity forward; lognormal fallback for sparse smiles
         atm_ivs = [c.iv for c in calls + puts if abs(c.strike - spot) / spot < 0.05]
         sigma = float(np.median(atm_ivs)) if atm_ivs else 0.3
         forward = _implied_forward(spot, calls, puts)
-        prices, weights = _terminal_grid(forward, sigma, t_years)
+        prices, weights, _used_smile = _market_density(forward, sigma, t_years, calls, puts)
 
         def make(family, name, legs, stock_qty=0):
             s = Strategy(family=family, name=name, ticker=ticker, spot=spot,
@@ -437,6 +509,7 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
     started = time.time()
     all_strategies: list[Strategy] = []
     ticker_meta: list[dict] = []
+    smiles: dict[str, dict] = {}
     contracts_total = 0
     errors: list[str] = []
 
@@ -457,11 +530,37 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
                 "contracts": n_contracts, "expirations": len(chains),
                 "strategies": len(strategies),
             })
+            smile = _smile_snapshot(spot, chains)
+            if smile:
+                smiles[ticker] = smile
         except Exception as e:
             errors.append(f"{ticker}: {type(e).__name__}: {e}")
 
-    return _aggregate(all_strategies, ticker_meta, contracts_total,
-                      time.time() - started, errors)
+    result = _aggregate(all_strategies, ticker_meta, contracts_total,
+                        time.time() - started, errors)
+    result["smiles"] = smiles
+    return result
+
+
+def _smile_snapshot(spot: float, chains: dict) -> dict | None:
+    """OTM IV smile of the expiry nearest 30 DTE, for the UI chart."""
+    best = None
+    for expiry, sides in chains.items():
+        cs = sides["C"] or sides["P"]
+        if not cs:
+            continue
+        dte = cs[0].dte
+        if best is None or abs(dte - 30) < abs(best[1] - 30):
+            best = (expiry, dte, sides)
+    if not best:
+        return None
+    expiry, dte, sides = best
+    pts = [[p.strike, round(p.iv * 100, 2)] for p in sides["P"] if p.strike <= spot]
+    pts += [[c.strike, round(c.iv * 100, 2)] for c in sides["C"] if c.strike > spot]
+    pts.sort()
+    if len(pts) < 6:
+        return None
+    return {"expiry": expiry, "dte": round(dte, 1), "spot": round(spot, 2), "points": pts}
 
 
 def _strategy_row(s: Strategy) -> dict:
@@ -481,6 +580,7 @@ def _strategy_row(s: Strategy) -> dict:
         "slippage": round(s.slippage, 2),
         "pop_exec": round(s.pop_exec, 4),
         "ev_exec": round(s.ev_exec, 2),
+        "cvar5": round(s.cvar5, 2),
         "roc_annual_exec": round((s.ev_exec / s.capital) * 365.0 / max(s.dte, 1.0), 4) if s.capital > 0 else 0.0,
         "delta": round(s.net_delta, 3), "gamma": round(s.net_gamma, 4),
         "theta": round(s.net_theta, 3), "vega": round(s.net_vega, 3),

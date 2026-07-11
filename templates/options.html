@@ -21,12 +21,14 @@
     <!-- top picks + portfolio builder -->
     <section class="charts-row">
       <div class="panel">
-        <h2>Mejores oportunidades <span class="sub">a precios ejecutables (bid/ask) · POP ≥ 65% · EV positivo · riesgo definido · retorno anual 8–300%</span></h2>
+        <h2>Mejores oportunidades <span class="sub">a precios ejecutables (bid/ask) · probabilidades implícitas del mercado · riesgo definido</span>
+          <button id="csv-btn" style="float:right;font:inherit;font-size:11px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;cursor:pointer">Exportar CSV</button>
+        </h2>
         <div class="table-scroll table-scroll-tall">
           <table class="data-table" id="picks-table">
             <thead><tr>
               <th>Estrategia</th><th>Ticker</th><th class="num">Venc.</th><th class="num">POP</th>
-              <th class="num">EV</th><th class="num">Capital</th><th class="num">Ret. anual</th><th class="num">Máx −</th>
+              <th class="num">EV</th><th class="num">Capital</th><th class="num">Ret. anual</th><th class="num">CVaR 5%</th><th class="num">Máx −</th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -146,9 +148,15 @@
       </div>
     </section>
 
-    <!-- per-ticker overview -->
+    <!-- smile + per-ticker overview -->
     <section class="charts-row">
-      <div class="panel panel-full">
+      <div class="panel">
+        <h2>Sonrisa de volatilidad <span class="sub">IV real por strike — la asimetría que el modelo incorpora</span>
+          <select id="smile-ticker" style="float:right;font:inherit;font-size:11px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 8px"></select>
+        </h2>
+        <div class="chart-box"><canvas id="smile"></canvas></div>
+      </div>
+      <div class="panel">
         <h2>Universo analizado por subyacente</h2>
         <div class="table-scroll">
           <table class="data-table" id="ticker-table">
@@ -163,12 +171,13 @@
     </section>
 
     <footer class="foot">
-      <p><strong>Supuestos del modelo:</strong> entrada a precio medio bid/ask; distribución terminal lognormal
-      centrada en el forward implícito del mercado (paridad put-call, incorpora tipos y dividendos) con la IV
-      at-the-money de cada vencimiento. El skew no está modelado — los retornos esperados en strikes alejados
-      reflejan en parte esa discrepancia. Máximo beneficio/pérdida calculados analíticamente sobre [0, ∞).
-      Datos en diferido de CBOE; solo contratos con mercado real (open interest o volumen).
-      Solo con fines educativos — no es asesoramiento financiero.</p>
+      <p><strong>Supuestos del modelo:</strong> probabilidades de la densidad terminal implícita del mercado
+      (Breeden-Litzenberger sobre la sonrisa de IV observada de cada vencimiento, suavizada; el skew SÍ está
+      incorporado), centrada en el forward de paridad put-call; fallback lognormal si la sonrisa es escasa.
+      Entradas: EV y estadísticas base a precio medio; las "mejores oportunidades" y la cartera descuentan además
+      medio spread bid/ask por pata (precios ejecutables). Máximo beneficio/pérdida analíticos sobre [0, ∞);
+      CVaR 5% = pérdida media en el 5% peor de escenarios. Datos en diferido de CBOE; solo contratos con mercado
+      real (open interest o volumen). Solo con fines educativos — no es asesoramiento financiero.</p>
     </footer>
   </main>
 

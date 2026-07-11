@@ -462,6 +462,7 @@ function renderPicksTable() {
       <td class="num pos">${fmt$(r.ev_exec)}</td>
       <td class="num">${fmt$(r.capital)}</td>
       <td class="num pos">${fmtPct(r.roc_annual_exec)}</td>
+      <td class="num neg">${fmt$(r.cvar5)}</td>
       <td class="num neg">${fmt$(r.max_loss)}</td>
     </tr>`;
   }).join("");
@@ -499,12 +500,14 @@ function buildPortfolio() {
   const totalEV = positions.reduce((a, r) => a + r.ev_exec, 0);
   const monthlyEV = positions.reduce((a, r) => a + r.ev_exec * 30.44 / r.dte, 0);
   const worstCase = positions.reduce((a, r) => a + r.max_loss, 0);
+  const totalCvar = positions.reduce((a, r) => a + r.cvar5, 0);
   const avgPop = positions.length ? positions.reduce((a, r) => a + r.pop_exec, 0) / positions.length : 0;
 
   $("portfolio-summary").innerHTML = [
     { label: "Capital usado", value: fmt$(used), detail: `de ${fmt$(bankroll)}` },
     { label: "EV total", value: fmt$(totalEV), cls: totalEV >= 0 ? "pos" : "neg", detail: "al vencimiento (modelo)" },
     { label: "EV mensual", value: fmt$(monthlyEV), cls: "pos", detail: "normalizado a 30 días" },
+    { label: "CVaR 5%", value: fmt$(totalCvar), cls: "neg", detail: "media del 5% peor, por posición" },
     { label: "Peor caso", value: fmt$(worstCase), cls: "neg", detail: "todas las posiciones en contra" },
     { label: "POP media", value: fmtPct(avgPop), detail: `${positions.length} posiciones` },
   ].map(t => `
@@ -530,6 +533,98 @@ function buildPortfolio() {
       <td class="num neg">${fmt$(r.max_loss)}</td>
     </tr>`;
   }).join("");
+}
+
+/* ------------------------------------------------------------- smile chart */
+function renderSmile() {
+  const smiles = DATA.smiles || {};
+  const sel = $("smile-ticker");
+  const ticker = sel.value || Object.keys(smiles)[0];
+  const { ctx, w, h } = prep($("smile"));
+  const s = smiles[ticker];
+  if (!s) {
+    axisText(ctx, 12);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Sin datos de sonrisa para este ticker", w / 2, h / 2);
+    return;
+  }
+
+  const ks = s.points.map(p => p[0]), ivs = s.points.map(p => p[1]);
+  const xLo = Math.min(...ks), xHi = Math.max(...ks);
+  let yLo = Math.min(...ivs), yHi = Math.max(...ivs);
+  const span = (yHi - yLo) || 1; yLo -= span * 0.12; yHi += span * 0.12;
+
+  const pad = { l: 46, r: 14, t: 12, b: 30 };
+  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const X = k => pad.l + (k - xLo) / (xHi - xLo) * iw;
+  const Y = v => pad.t + (1 - (v - yLo) / (yHi - yLo)) * ih;
+
+  ctx.strokeStyle = GRID; ctx.lineWidth = 1;
+  axisText(ctx);
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const t of niceTicks(yLo, yHi, 5)) {
+    ctx.beginPath(); ctx.moveTo(pad.l, Y(t)); ctx.lineTo(w - pad.r, Y(t)); ctx.stroke();
+    ctx.fillText(t.toFixed(0) + "%", pad.l - 6, Y(t));
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const t of niceTicks(xLo, xHi, 6)) {
+    ctx.fillText("$" + t.toFixed(0), X(t), h - pad.b + 6);
+  }
+
+  // spot marker
+  ctx.strokeStyle = MUTED; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(X(s.spot), pad.t); ctx.lineTo(X(s.spot), pad.t + ih); ctx.stroke();
+  ctx.setLineDash([]);
+  axisText(ctx);
+  ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+  ctx.fillText(`spot $${s.spot}`, X(s.spot), pad.t + 10);
+
+  // smile line + markers (single series: puts OTM left, calls OTM right)
+  ctx.strokeStyle = "#3987e5"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  s.points.forEach((p, i) => i === 0 ? ctx.moveTo(X(p[0]), Y(p[1])) : ctx.lineTo(X(p[0]), Y(p[1])));
+  ctx.stroke();
+  for (const p of s.points) {
+    ctx.fillStyle = "#3987e5";
+    ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+  axisText(ctx, 10);
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText(`${ticker} · vence ${s.expiry} (${s.dte} DTE) · IV por strike`, pad.l + 4, pad.t + 2);
+
+  const canvas = $("smile");
+  canvas.onmousemove = e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    let best = null, bd = 200;
+    for (const p of s.points) {
+      const dd = (X(p[0]) - mx) ** 2 + (Y(p[1]) - my) ** 2;
+      if (dd < bd) { bd = dd; best = p; }
+    }
+    if (best) {
+      const side = best[0] <= s.spot ? "put OTM" : "call OTM";
+      showTip(`<div class="tt-row">Strike <b>$${best[0]}</b> (${side})</div>
+        <div class="tt-row">IV <b>${best[1].toFixed(1)}%</b></div>`, e.clientX, e.clientY);
+    } else hideTip();
+  };
+  canvas.onmouseleave = hideTip;
+}
+
+/* -------------------------------------------------------------- CSV export */
+function exportCSV() {
+  const rows = DATA.top_picks || [];
+  const cols = ["ticker", "name", "family", "expiry", "dte", "legs", "pop_exec", "ev_exec",
+                "capital", "roc_annual_exec", "cvar5", "max_loss", "slippage", "delta", "theta", "vega"];
+  const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [cols.join(",")]
+    .concat(rows.map(r => cols.map(c => esc(r[c])).join(",")))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `top-picks-${(DATA.generated_at || "scan").slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 /* ----------------------------------------------------------------- tables */
@@ -604,6 +699,9 @@ function populateFilters() {
   const famSel = $("f-family");
   famSel.innerHTML = '<option value="">Todas</option>' +
     FAMILIES.map(f => `<option value="${f.key}">${f.label}</option>`).join("");
+  const smileSel = $("smile-ticker");
+  smileSel.innerHTML = Object.keys(DATA.smiles || {})
+    .map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
 function renderAll() {
@@ -617,6 +715,7 @@ function renderAll() {
   renderFamilyTable();
   renderTopTable();
   renderTickerTable();
+  renderSmile();
   if (selectedRow) renderPayoff(selectedRow);
 }
 
@@ -630,6 +729,8 @@ function rerenderFiltered() {
   $(id).addEventListener("change", rerenderFiltered));
 ["bankroll", "max-pos"].forEach(id =>
   $(id).addEventListener("input", () => { if (DATA) buildPortfolio(); }));
+$("smile-ticker").addEventListener("change", () => { if (DATA) renderSmile(); });
+$("csv-btn").addEventListener("click", () => { if (DATA) exportCSV(); });
 $("f-pop").addEventListener("input", () => {
   $("f-pop-val").textContent = $("f-pop").value + "%";
   rerenderFiltered();
