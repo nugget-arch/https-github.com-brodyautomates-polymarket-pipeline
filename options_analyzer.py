@@ -176,14 +176,36 @@ def build_universe(data: dict) -> tuple[float, float, dict[str, dict[str, list[C
 
 # ---------------------------------------------------------------- payoff math
 
-def _terminal_grid(spot: float, sigma: float, t_years: float) -> tuple[np.ndarray, np.ndarray]:
-    """Lognormal terminal-price grid and its probability weights."""
+def _implied_forward(spot: float, calls: list[Contract], puts: list[Contract]) -> float:
+    """
+    Market-implied forward from put-call parity: F = K + (C - P) at each
+    near-ATM strike. Uses the market's own pricing of carry (rates minus
+    dividends) instead of assuming F = spot.
+    """
+    put_by_k = {p.strike: p for p in puts}
+    estimates = []
+    for c in calls:
+        p = put_by_k.get(c.strike)
+        if p and abs(c.strike - spot) / spot < 0.08:
+            estimates.append(c.strike + (c.mid - p.mid))
+    if not estimates:
+        return spot
+    f = float(np.median(estimates))
+    # sanity clamp: a forward >5% away from spot inside 120 DTE is bad data
+    return f if 0.95 * spot <= f <= 1.05 * spot else spot
+
+
+def _terminal_grid(forward: float, sigma: float, t_years: float) -> tuple[np.ndarray, np.ndarray]:
+    """Lognormal terminal-price grid and its probability weights.
+
+    Centered so that E[S_T] equals the market-implied forward (risk-neutral
+    pricing measure): mu = ln(F) - sigma^2*T/2.
+    """
     sd = max(sigma * math.sqrt(max(t_years, 1e-6)), 1e-4)
-    lo = spot * math.exp(-4 * sd)
-    hi = spot * math.exp(4 * sd)
+    lo = forward * math.exp(-4 * sd)
+    hi = forward * math.exp(4 * sd)
     prices = np.linspace(lo, hi, GRID_POINTS)
-    # risk-neutral-ish drift 0: median = spot
-    mu = math.log(spot) - 0.5 * sd * sd
+    mu = math.log(forward) - 0.5 * sd * sd
     x = np.log(prices)
     pdf = np.exp(-((x - mu) ** 2) / (2 * sd * sd)) / (prices * sd * math.sqrt(2 * math.pi))
     weights = pdf * np.gradient(prices)
@@ -198,6 +220,40 @@ def _leg_payoff(prices: np.ndarray, leg: Leg) -> np.ndarray:
     else:
         intrinsic = np.maximum(c.strike - prices, 0.0)
     return leg.qty * (intrinsic - c.mid)
+
+
+def _payoff_scalar(strategy: Strategy, S: float, stock_qty: int) -> float:
+    """Exact per-share payoff of the strategy at terminal price S."""
+    v = 0.0
+    for leg in strategy.legs:
+        c = leg.contract
+        intrinsic = max(S - c.strike, 0.0) if c.kind == "C" else max(c.strike - S, 0.0)
+        v += leg.qty * (intrinsic - c.mid)
+    if stock_qty:
+        v += stock_qty * (S - strategy.spot)
+    return v
+
+
+def _analytic_extremes(strategy: Strategy, stock_qty: int) -> tuple[float, float]:
+    """
+    True max profit / max loss over S in [0, inf).
+
+    The payoff is piecewise linear with kinks only at the strikes, so its
+    extremes occur at S=0, at a strike, or asymptotically as S -> inf
+    (slope = net long calls + stock). Returns per-contract dollars (x100);
+    +inf for unlimited upside.
+    """
+    kinks = [0.0] + sorted({leg.contract.strike for leg in strategy.legs})
+    vals = [_payoff_scalar(strategy, S, stock_qty) for S in kinks]
+    slope_inf = sum(leg.qty for leg in strategy.legs if leg.contract.kind == "C") + stock_qty
+
+    max_p = max(vals) * 100
+    max_l = min(vals) * 100
+    if slope_inf > 0:
+        max_p = math.inf
+    elif slope_inf < 0:
+        max_l = -math.inf  # unreachable with current families, kept for safety
+    return max_p, max_l
 
 
 def evaluate(strategy: Strategy, prices: np.ndarray, weights: np.ndarray,
@@ -218,8 +274,7 @@ def evaluate(strategy: Strategy, prices: np.ndarray, weights: np.ndarray,
         strategy.net_delta += stock_qty
 
     strategy.net_debit = round(net_debit, 4)
-    strategy.max_profit = float(payoff.max()) * 100
-    strategy.max_loss = float(payoff.min()) * 100
+    strategy.max_profit, strategy.max_loss = _analytic_extremes(strategy, stock_qty)
 
     # capital at risk: what a broker would actually tie up
     if strategy.family == "csp":
@@ -236,16 +291,21 @@ def evaluate(strategy: Strategy, prices: np.ndarray, weights: np.ndarray,
     strategy.expected_value = float((payoff * weights).sum()) * 100
     strategy.ev_pct = strategy.expected_value / strategy.capital if strategy.capital > 0 else 0.0
 
-    # breakevens: sign changes of payoff across the grid
-    sign = np.sign(payoff)
-    flips = np.where(np.diff(sign) != 0)[0]
+    # breakevens: exact roots of the piecewise-linear payoff. Kinks only at
+    # strikes, so solve each linear segment (plus the tail to infinity).
+    kinks = [0.0] + sorted({leg.contract.strike for leg in strategy.legs})
+    kink_vals = [_payoff_scalar(strategy, S, stock_qty) for S in kinks]
     bes = []
-    for i in flips[:4]:
-        x0, x1 = prices[i], prices[i + 1]
-        y0, y1 = payoff[i], payoff[i + 1]
-        if y1 != y0:
-            bes.append(round(float(x0 - y0 * (x1 - x0) / (y1 - y0)), 2))
-    strategy.breakevens = bes
+    for i in range(len(kinks) - 1):
+        y0, y1 = kink_vals[i], kink_vals[i + 1]
+        if y0 == 0 or (y0 < 0) == (y1 < 0):
+            continue
+        x0, x1 = kinks[i], kinks[i + 1]
+        bes.append(round(x0 - y0 * (x1 - x0) / (y1 - y0), 2))
+    slope_inf = sum(leg.qty for leg in strategy.legs if leg.contract.kind == "C") + stock_qty
+    if slope_inf != 0 and kink_vals[-1] != 0 and (kink_vals[-1] < 0) == (slope_inf > 0):
+        bes.append(round(kinks[-1] - kink_vals[-1] / slope_inf, 2))
+    strategy.breakevens = bes[:4]
 
     # composite score: EV per unit of capital, weighted by POP
     strategy.score = strategy.ev_pct * math.sqrt(max(strategy.pop, 1e-6))
@@ -269,10 +329,12 @@ def generate_strategies(ticker: str, spot: float, chains: dict) -> list[Strategy
         dte = (calls or puts)[0].dte
         t_years = dte / 365.0
 
-        # shared grid per (ticker, expiry): use ATM iv as the distribution's sigma
+        # shared grid per (ticker, expiry): ATM iv as sigma, centered on the
+        # market-implied forward (put-call parity) rather than spot
         atm_ivs = [c.iv for c in calls + puts if abs(c.strike - spot) / spot < 0.05]
         sigma = float(np.median(atm_ivs)) if atm_ivs else 0.3
-        prices, weights = _terminal_grid(spot, sigma, t_years)
+        forward = _implied_forward(spot, calls, puts)
+        prices, weights = _terminal_grid(forward, sigma, t_years)
 
         def make(family, name, legs, stock_qty=0):
             s = Strategy(family=family, name=name, ticker=ticker, spot=spot,
@@ -392,8 +454,8 @@ def _strategy_row(s: Strategy) -> dict:
         "spot": round(s.spot, 2),
         "net_debit": round(s.net_debit * 100, 2),
         "capital": round(s.capital, 2),
-        "max_profit": round(s.max_profit, 2),
-        "max_loss": round(s.max_loss, 2),
+        "max_profit": None if math.isinf(s.max_profit) else round(s.max_profit, 2),
+        "max_loss": None if math.isinf(s.max_loss) else round(s.max_loss, 2),
         "breakevens": s.breakevens,
         "pop": round(s.pop, 4),
         "ev": round(s.expected_value, 2),

@@ -22,7 +22,7 @@ let DATA = null;          // last full payload.result
 let selectedRow = null;   // currently charted strategy row
 
 const $ = id => document.getElementById(id);
-const fmt$ = v => (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2);
+const fmt$ = v => v === null ? "∞" : (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2);
 const fmtPct = (v, d = 1) => (v * 100).toFixed(d) + "%";
 
 /* ---------------------------------------------------------------- tooltip */
@@ -92,7 +92,9 @@ function filterTop() {
     (!f.ticker || r.ticker === f.ticker) &&
     (!f.family || r.family === f.family) &&
     r.pop >= f.minPop);
-  rows.sort((a, b) => (b[f.sort] ?? 0) - (a[f.sort] ?? 0));
+  // null = unlimited (max profit of a long call), so it sorts first
+  const v = r => r[f.sort] === null ? Infinity : (r[f.sort] ?? 0);
+  rows.sort((a, b) => v(b) - v(a));
   return rows.slice(0, 60);
 }
 

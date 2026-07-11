@@ -119,9 +119,11 @@
 
     <footer class="foot">
       <p><strong>Supuestos del modelo:</strong> entrada a precio medio bid/ask; distribución terminal lognormal
-      parametrizada con la IV at-the-money de cada vencimiento (el skew no está modelado — los retornos esperados
-      en strikes alejados reflejan en parte esa discrepancia). Datos en diferido de CBOE; solo contratos con
-      mercado real (open interest o volumen). Solo con fines educativos — no es asesoramiento financiero.</p>
+      centrada en el forward implícito del mercado (paridad put-call, incorpora tipos y dividendos) con la IV
+      at-the-money de cada vencimiento. El skew no está modelado — los retornos esperados en strikes alejados
+      reflejan en parte esa discrepancia. Máximo beneficio/pérdida calculados analíticamente sobre [0, ∞).
+      Datos en diferido de CBOE; solo contratos con mercado real (open interest o volumen).
+      Solo con fines educativos — no es asesoramiento financiero.</p>
     </footer>
   </main>
 
