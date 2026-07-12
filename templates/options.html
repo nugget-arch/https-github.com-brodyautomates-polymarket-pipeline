@@ -18,6 +18,19 @@
     <!-- hero stat tiles -->
     <section class="tiles" id="tiles" aria-label="Resumen del análisis"></section>
 
+    <!-- analyst verdict + track record -->
+    <section class="charts-row">
+      <div class="panel">
+        <h2>Veredicto del analista <span class="sub">las decisiones del motor, con sus razones — puedes discrepar</span></h2>
+        <div id="verdict-cards"></div>
+      </div>
+      <div class="panel">
+        <h2>Historial verificado <span class="sub">lo que el modelo prometió vs lo que pasó de verdad</span></h2>
+        <div class="tiles" id="track-tiles" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:8px"></div>
+        <div id="track-note" class="foot" style="border:none;padding-top:4px"></div>
+      </div>
+    </section>
+
     <!-- top picks + portfolio builder -->
     <section class="charts-row">
       <div class="panel">
@@ -27,7 +40,7 @@
         <div class="table-scroll table-scroll-tall">
           <table class="data-table" id="picks-table">
             <thead><tr>
-              <th>Estrategia</th><th>Ticker</th><th class="num">Venc.</th><th class="num">POP</th>
+              <th>Nota</th><th>Estrategia</th><th>Ticker</th><th class="num">Venc.</th><th class="num">POP</th>
               <th class="num">EV</th><th class="num">Capital</th><th class="num">Ret. anual</th><th class="num">CVaR 5%</th><th class="num">Máx −</th>
             </tr></thead>
             <tbody></tbody>
@@ -107,8 +120,9 @@
         </div>
         <p class="foot" style="border:none;padding-top:8px;margin:6px 0 0">
           ⚠ Simulación al vencimiento con la distribución que el mercado pricea hoy: estrategias del mismo activo
-          comparten precio final (correlación real); activos distintos se simulan independientes (aproximación).
-          Entradas a precios ejecutables. No modela salidas anticipadas ni asignación temprana. No es una garantía.
+          comparten precio final; activos distintos se acoplan con la matriz de correlaciones real de 1 año
+          (cópula gaussiana). Entradas a precios ejecutables. No modela salidas anticipadas ni asignación temprana.
+          No es una garantía.
         </p>
       </div>
     </section>

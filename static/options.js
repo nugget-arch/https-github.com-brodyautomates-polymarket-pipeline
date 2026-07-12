@@ -444,6 +444,61 @@ function renderPayoff(row) {
     <span>Legs <b>${row.legs}</b></span>`;
 }
 
+/* ------------------------------------------- analyst verdict + track record */
+const BADGE = { ENTRAR: "badge-entrar", CAUTELA: "badge-cautela", EVITAR: "badge-evitar" };
+
+function renderVerdicts() {
+  const picks = (DATA.top_picks || []).filter(r => r.verdict);
+  const box = $("verdict-cards");
+  if (!picks.length) {
+    box.innerHTML = `<p class="foot" style="border:none">Sin veredictos en este escaneo.</p>`;
+    return;
+  }
+  const top = picks.slice(0, 4);
+  box.innerHTML = top.map(r => {
+    const fam = FAMILY_BY_KEY[r.family];
+    return `<div class="verdict-card">
+      <div class="v-head">
+        <span class="badge ${BADGE[r.verdict]}">${r.verdict} · ${r.analyst_score}</span>
+        <span><span class="chip" style="background:${fam.color}"></span>${r.ticker} ${r.name} · ${r.dte}d</span>
+        <span style="margin-left:auto;color:var(--ink-2);font-weight:400">EV ${fmt$(r.ev_exec)} · POP ${fmtPct(r.pop_exec)}</span>
+      </div>
+      <ul class="v-reasons">${r.reasons.map(x => `<li>${x}</li>`).join("")}</ul>
+    </div>`;
+  }).join("");
+}
+
+function renderTrackRecord() {
+  const tr = DATA.track_record;
+  const tiles = $("track-tiles"), note = $("track-note");
+  if (!tr || tr.error) {
+    tiles.innerHTML = "";
+    note.textContent = tr && tr.error ? `Historial no disponible: ${tr.error}` : "Historial no disponible.";
+    return;
+  }
+  const items = [
+    { label: "Picks registrados", value: tr.tracked.toLocaleString("es"), detail: `${tr.pending} esperando vencimiento` },
+    { label: "Verificados", value: tr.verified.toLocaleString("es"), detail: "vencidos y comprobados" },
+  ];
+  if (tr.verified > 0) {
+    items.push(
+      { label: "POP prometida", value: fmtPct(tr.predicted_pop), detail: "media de los verificados" },
+      { label: "Acierto real", value: fmtPct(tr.realized_winrate), cls: tr.realized_winrate >= tr.predicted_pop ? "pos" : "neg", detail: "lo que pasó de verdad" },
+      { label: "EV prometido", value: fmt$(tr.predicted_ev), detail: "suma de los verificados" },
+      { label: "P/L realizado", value: fmt$(tr.realized_pl), cls: tr.realized_pl >= 0 ? "pos" : "neg", detail: "al cierre real de Yahoo" },
+    );
+    note.textContent = "Si «acierto real» se mantiene cerca de «POP prometida» con volumen creciente, el motor está calibrado. Si no, desconfía de él.";
+  } else {
+    note.textContent = "Aún no hay picks vencidos que verificar — el historial se construye solo: cada escaneo registra sus picks y los comprueba contra el precio real de cierre cuando vencen.";
+  }
+  tiles.innerHTML = items.map(t => `
+    <div class="tile" style="padding:10px 12px">
+      <div class="t-label">${t.label}</div>
+      <div class="t-value ${t.cls || ""}" style="font-size:19px">${t.value}</div>
+      <div class="t-detail">${t.detail}</div>
+    </div>`).join("");
+}
+
 /* ------------------------------------------------- top picks + portfolio */
 function renderPicksTable() {
   const rows = DATA.top_picks || [];
@@ -454,7 +509,11 @@ function renderPicksTable() {
   }
   tbody.innerHTML = rows.map((r, i) => {
     const fam = FAMILY_BY_KEY[r.family];
+    const badge = r.verdict
+      ? `<span class="badge ${BADGE[r.verdict]}" title="${(r.reasons || []).join(' · ')}">${r.analyst_score}</span>`
+      : "—";
     return `<tr data-i="${i}">
+      <td>${badge}</td>
       <td><span class="chip" style="background:${fam.color}"></span>${r.name}</td>
       <td>${r.ticker}</td>
       <td class="num">${r.dte}d</td>
@@ -618,6 +677,45 @@ function sampleTerminal(quantiles, u) {
   return quantiles[i] + (quantiles[i + 1] - quantiles[i]) * (x - i);
 }
 
+// standard normal CDF (Abramowitz-Stegun 7.1.26, |err| < 1.5e-7)
+function normCdf(x) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return x >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+}
+
+function randn() {
+  // Box-Muller
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+/**
+ * Correlated uniforms per ticker via Gaussian copula with the real 1y
+ * correlation matrix (Cholesky shipped by the server). Falls back to
+ * independent draws when a ticker has no history.
+ */
+function drawCopula(tickersNeeded) {
+  const corr = DATA.correlations;
+  const out = {};
+  if (!corr) {
+    for (const t of tickersNeeded) out[t] = Math.random();
+    return out;
+  }
+  const idx = corr.tickers;
+  const z = idx.map(() => randn());
+  for (const t of tickersNeeded) {
+    const i = idx.indexOf(t);
+    if (i < 0) { out[t] = Math.random(); continue; }
+    let s = 0;
+    for (let j = 0; j <= i; j++) s += corr.chol[i][j] * z[j];
+    out[t] = normCdf(s);
+  }
+  return out;
+}
+
 function runSimulation() {
   const capital = Math.max(parseFloat($("sim-capital").value) || 0, 0);
   const ticker = $("sim-ticker").value;
@@ -652,16 +750,16 @@ function runSimulation() {
   }
 
   // 10,000 trials; same-ticker positions share one uniform draw per trial
-  // (comonotonic across expiries), different tickers draw independently
+  // (comonotonic across expiries); across tickers, a Gaussian copula with
+  // the real 1-year correlation matrix
   const TRIALS = 10000;
+  const simTickers = [...new Set(positions.map(p => p.r.ticker))];
   const finals = new Float64Array(TRIALS);
   for (let t = 0; t < TRIALS; t++) {
-    const uByTicker = {};
+    const uByTicker = drawCopula(simTickers);
     let pl = 0;
     for (const p of positions) {
-      const tk = p.r.ticker;
-      if (uByTicker[tk] === undefined) uByTicker[tk] = Math.random();
-      const S = sampleTerminal(dens[tk][p.r.expiry], uByTicker[tk]);
+      const S = sampleTerminal(dens[p.r.ticker][p.r.expiry], uByTicker[p.r.ticker]);
       pl += p.contracts * (payoffAt(p.r, S) - p.r.slippage);
     }
     finals[t] = capital + pl;
@@ -844,12 +942,14 @@ function populateFilters() {
     .map(t => `<option value="${t}">${t}</option>`).join("");
   // simulator: only tickers that actually have executable picks
   const pickTickers = [...new Set((DATA.top_picks || []).map(r => r.ticker))];
-  $("sim-ticker").innerHTML = '<option value="">Todos (independientes)</option>' +
+  $("sim-ticker").innerHTML = '<option value="">Todos (correlaciones reales 1a)</option>' +
     pickTickers.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
 function renderAll() {
   renderTiles();
+  renderVerdicts();
+  renderTrackRecord();
   renderPicksTable();
   buildPortfolio();
   renderScatter();

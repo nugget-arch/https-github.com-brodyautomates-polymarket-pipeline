@@ -15,6 +15,7 @@ import time
 from flask import Flask, jsonify, render_template
 
 import options_analyzer
+import options_history
 
 app = Flask(__name__)
 
@@ -38,6 +39,14 @@ def scan_loop(tickers: list[str] | None, interval: float):
             _state["scanning"] = True
         try:
             result = options_analyzer.scan(tickers, on_progress=_set_activity)
+            # track record: persist picks, verify the ones whose expiry passed
+            try:
+                options_history.record_scan(result)
+                _set_activity("Verifying expired picks...")
+                options_history.verify_expired()
+                result["track_record"] = options_history.get_track_record()
+            except Exception as e:
+                result["track_record"] = {"error": f"{type(e).__name__}: {e}"}
             with _state_lock:
                 _state["result"] = result
                 _state["scan_number"] += 1

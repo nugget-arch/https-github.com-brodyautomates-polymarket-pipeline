@@ -541,11 +541,13 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
             strategies, densities = generate_strategies(ticker, spot, chains)
             all_strategies.extend(strategies)
             all_densities[ticker] = densities
-            ticker_meta.append({
+            meta = {
                 "ticker": ticker, "spot": spot, "iv30": iv30,
                 "contracts": n_contracts, "expirations": len(chains),
                 "strategies": len(strategies),
-            })
+            }
+            meta.update(_term_structure(spot, chains))
+            ticker_meta.append(meta)
             smile = _smile_snapshot(spot, chains)
             if smile:
                 smiles[ticker] = smile
@@ -556,7 +558,139 @@ def scan(tickers: list[str] | None = None, on_progress=None) -> dict:
                         time.time() - started, errors)
     result["smiles"] = smiles
     result["densities"] = all_densities
+
+    # analyst decision layer over the executable picks
+    term_by_ticker = {m["ticker"]: m for m in ticker_meta}
+    _analyst_verdicts(result["top_picks"], term_by_ticker)
+
+    # real cross-ticker correlations for the simulator's copula
+    if on_progress:
+        on_progress("Computing 1y correlations...")
+    result["correlations"] = _correlations([m["ticker"] for m in ticker_meta])
     return result
+
+
+def _term_structure(spot: float, chains: dict) -> dict:
+    """
+    ATM IV of the front expiry vs the median of the later ones. A front IV
+    well above the back (ratio > 1.25) means the market is pricing an event
+    (earnings, ruling, guidance) before the front expiry — premium there is
+    event risk, not free income.
+    """
+    per_expiry = []
+    for expiry, sides in chains.items():
+        ivs = [c.iv for c in sides["C"] + sides["P"] if abs(c.strike - spot) / spot < 0.05]
+        if ivs:
+            dte = (sides["C"] or sides["P"])[0].dte
+            per_expiry.append((dte, float(np.median(ivs)), expiry))
+    per_expiry.sort()
+    if len(per_expiry) < 2:
+        return {"event_risk": False, "iv_front": None, "iv_back": None, "front_dte": None}
+    iv_front = per_expiry[0][1]
+    iv_back = float(np.median([iv for _, iv, _ in per_expiry[1:]]))
+    return {
+        "event_risk": iv_front / iv_back > 1.25 if iv_back > 0 else False,
+        "iv_front": round(iv_front * 100, 1),
+        "iv_back": round(iv_back * 100, 1),
+        "front_dte": round(per_expiry[0][0], 1),
+    }
+
+
+def _correlations(tickers: list[str]) -> dict | None:
+    """
+    Real 1-year daily-return correlations (Yahoo closes) and their Cholesky
+    factor, so the simulator can draw correlated terminal prices across
+    tickers via a Gaussian copula.
+    """
+    series = {}
+    for t in tickers:
+        try:
+            resp = httpx.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{t}",
+                params={"interval": "1d", "range": "1y"},
+                headers={"User-Agent": "Mozilla/5.0"}, timeout=15,
+            )
+            resp.raise_for_status()
+            r = resp.json()["chart"]["result"][0]
+            closes = {ts: c for ts, c in zip(r["timestamp"], r["indicators"]["quote"][0]["close"])
+                      if c is not None}
+            if len(closes) > 120:
+                series[t] = closes
+        except Exception:
+            continue
+    if len(series) < 2:
+        return None
+
+    common = sorted(set.intersection(*(set(s.keys()) for s in series.values())))
+    if len(common) < 120:
+        return None
+    kept = [t for t in tickers if t in series]
+    rets = np.array([np.diff(np.log([series[t][ts] for ts in common])) for t in kept])
+    corr = np.corrcoef(rets)
+    # jitter for numerical PSD, then Cholesky
+    try:
+        chol = np.linalg.cholesky(corr + np.eye(len(kept)) * 1e-6)
+    except np.linalg.LinAlgError:
+        return None
+    return {
+        "tickers": kept,
+        "chol": [[round(float(x), 5) for x in row] for row in chol],
+        "avg_corr": round(float((corr.sum() - len(kept)) / (len(kept) ** 2 - len(kept))), 3),
+    }
+
+
+def _analyst_verdicts(top_picks: list[dict], term_by_ticker: dict) -> None:
+    """
+    The decision layer: per pick, hard gates plus a 0-100 score and a verdict
+    with explicit reasons. ENTRAR only when nothing smells; every deduction
+    is spelled out so the user can disagree with the engine.
+    """
+    for r in top_picks:
+        reasons = []
+        score = 100.0
+
+        # probability & return quality
+        if r["pop_exec"] >= 0.80:
+            reasons.append(f"probabilidad alta ({r['pop_exec']:.0%})")
+        elif r["pop_exec"] < 0.70:
+            score -= 15
+            reasons.append(f"probabilidad justa ({r['pop_exec']:.0%})")
+        roc = r["roc_annual_exec"]
+        if roc >= 0.25:
+            reasons.append(f"retorno anualizado {roc:.0%}")
+        elif roc < 0.12:
+            score -= 10
+            reasons.append(f"retorno anualizado modesto ({roc:.0%})")
+
+        # liquidity: worst leg spread
+        sp = r.get("max_spread_pct", 0)
+        if sp > 0.25:
+            score -= 30
+            reasons.append(f"patas poco líquidas (spread {sp:.0%})")
+        elif sp > 0.12:
+            score -= 12
+            reasons.append(f"liquidez mejorable (spread {sp:.0%})")
+        else:
+            reasons.append("patas líquidas")
+
+        # event risk: term structure of this ticker
+        term = term_by_ticker.get(r["ticker"], {})
+        if term.get("event_risk") and r["dte"] >= (term.get("front_dte") or 0):
+            score -= 25
+            reasons.append(f"evento priceado antes del vencimiento (IV {term['iv_front']}% vs {term['iv_back']}%)")
+
+        # tail pain vs reward
+        if r["capital"] > 0 and abs(r["cvar5"]) / r["capital"] > 0.9:
+            score -= 10
+            reasons.append("en el 5% peor pierdes casi todo el capital")
+
+        score = max(min(score, 100), 0)
+        r["analyst_score"] = round(score)
+        r["verdict"] = "ENTRAR" if score >= 75 else ("CAUTELA" if score >= 55 else "EVITAR")
+        r["reasons"] = reasons
+
+    top_picks.sort(key=lambda r: (-r["analyst_score"],
+                                  -(r["pop_exec"] * r["roc_annual_exec"])))
 
 
 def _smile_snapshot(spot: float, chains: dict) -> dict | None:
@@ -598,6 +732,8 @@ def _strategy_row(s: Strategy) -> dict:
         "pop_exec": round(s.pop_exec, 4),
         "ev_exec": round(s.ev_exec, 2),
         "cvar5": round(s.cvar5, 2),
+        "max_spread_pct": round(max(((l.contract.ask - l.contract.bid) / l.contract.mid
+                                     for l in s.legs), default=0), 4),
         "roc_annual_exec": round((s.ev_exec / s.capital) * 365.0 / max(s.dte, 1.0), 4) if s.capital > 0 else 0.0,
         "delta": round(s.net_delta, 3), "gamma": round(s.net_gamma, 4),
         "theta": round(s.net_theta, 3), "vega": round(s.net_vega, 3),
