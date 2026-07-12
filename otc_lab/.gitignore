@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+artifacts/
+data/sample/*.parquet
+data/sample/*.csv
+.pytest_cache/
+*.egg-info/
+KILL_SWITCH

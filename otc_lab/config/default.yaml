@@ -1,0 +1,78 @@
+# otc_lab default experiment configuration.
+# Reproducibility contract: results are a pure function of (data, this file, seed).
+
+seed: 7
+log_level: INFO
+
+data:
+  paths:
+    - data/sample/eurusd_otc_1m.parquet
+    - data/sample/gbpusd_1m.parquet
+  timezone: UTC
+  bar_seconds: 60
+  max_gap_bars: 3
+  holdout_fraction: 0.2      # final test segment, locked
+  holdout_unlocked: false    # flip ONLY when research is frozen
+
+labels:
+  expiry_bars: [1, 2, 3, 5]  # minutes at 1m bars
+  latency_bars: 1            # signal at close t -> entry at open t+1 (+latency-1)
+  tie_policy: refund         # loss | refund | drop
+
+features:
+  momentum_windows: [3, 5, 10]
+  ema_fast: 9
+  ema_slow: 21
+  rsi_period: 14
+  atr_period: 14
+  realized_vol_window: 20
+  bollinger_window: 20
+  slope_window: 12
+
+strategies:
+  names: [random, trend, meanrev, logistic]
+  logistic_c: 0.1
+  calibration: sigmoid
+  use_lightgbm: false        # optional; enable only if installed
+
+validation:
+  train_bars: 5000
+  val_bars: 1000
+  test_bars: 1000
+  step_bars: 1000
+  embargo_bars: 30
+  n_bootstrap: 2000
+  block_size: 50
+  confidence: 0.95
+  min_oos_trades: 1000
+  multiple_test_method: benjamini_hochberg
+
+backtest:
+  payout_base: 0.80
+  payout_jitter: 0.05        # per-trade payout ~ U(base-j, base+j)
+  payout_floor: 0.70
+  rejection_prob: 0.02       # broker rejects this fraction of entries
+  threshold_margin: 0.02     # safety margin over break-even win rate
+  threshold_use_val_ci: true # widen margin by validation CI half-width
+
+risk:
+  initial_capital: 10000
+  risk_per_trade: 0.0025     # 0.25% (hard cap 0.50%)
+  daily_loss_limit: 0.01     # 1%
+  max_consecutive_losses: 3
+  cooldown_bars: 60
+  max_trades_per_session: 50
+  drawdown_soft_limit: 0.05
+  drawdown_scale: 0.5
+  kill_switch_file: KILL_SWITCH
+
+paper:
+  mode: shadow               # shadow = signals only, no simulated fills
+  speed: 0.0
+  journal_path: artifacts/journal.jsonl
+
+report:
+  out_dir: artifacts
+  formats: [md, html]
+
+registry_db: artifacts/experiments.sqlite

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "otc-lab"
+version = "0.1.0"
+description = "Quantitative research platform for OTC binary options: statistical edge detection with honest negative results. Research/paper-trading only; live execution is disabled by design."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=14.0",
+    "scipy>=1.11",
+    "scikit-learn>=1.3",
+    "pydantic>=2.5",
+    "PyYAML>=6.0",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+lgbm = ["lightgbm>=4.1"]
+dev = ["pytest>=7.4", "pytest-cov>=4.1"]
+
+[project.scripts]
+otc-lab = "otc_lab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["otc_lab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
