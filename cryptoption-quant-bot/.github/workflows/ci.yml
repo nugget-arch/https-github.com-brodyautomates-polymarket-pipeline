@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          cd apps/api && pip install -e ".[dev]"
+          cd ../../packages/quant_engine && pip install -e .
+      - name: Lint (ruff)
+        run: cd apps/api && ruff check .
+      - name: Type check (mypy)
+        run: cd apps/api && mypy cryptoption_api
+      - name: Tests (pytest)
+        run: cd apps/api && pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: cd apps/web && npm ci
+      - name: Type check
+        run: cd apps/web && npm run typecheck
+      - name: Unit tests (vitest)
+        run: cd apps/web && npm run test -- --run
+      - name: Build
+        run: cd apps/web && npm run build

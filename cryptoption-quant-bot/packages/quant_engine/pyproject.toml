@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quant-engine"
+version = "0.1.0"
+description = "Deterministic quantitative engine for binary-options research. Pure library: no network, no web framework. Populated by porting the repo-root otc_lab project across phases 3-7."
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "polars>=0.20",   # ingestion/validation fast path
+    "scipy>=1.11",
+    "scikit-learn>=1.3",
+    "duckdb>=0.10",
+]
+
+[project.optional-dependencies]
+lgbm = ["lightgbm>=4.1"]
+
+[tool.setuptools.packages.find]
+include = ["quant_engine*"]

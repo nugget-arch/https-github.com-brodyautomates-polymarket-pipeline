@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# Node / Next
+node_modules/
+apps/web/.next/
+apps/web/out/
+# Data & artifacts
+datasets/raw/*
+datasets/validated/*
+!datasets/**/.gitkeep
+reports/*.html
+reports/*.md
+*.duckdb
+*.sqlite
+# Env & secrets
+.env
+KILL_SWITCH
