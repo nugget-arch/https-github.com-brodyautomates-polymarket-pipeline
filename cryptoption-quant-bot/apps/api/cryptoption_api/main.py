@@ -12,9 +12,18 @@ from . import __version__
 from .db import Base, get_engine, get_sessionmaker
 from .logging_setup import get_logger, setup_logging
 from .middleware import SecurityHeadersMiddleware
-from .routers import auth_router, dashboard_router, health_router
+from .routers import (
+    auth_router,
+    dashboard_router,
+    data_quality_router,
+    health_router,
+    market_router,
+)
+from .runtime.market_feed import get_feed_manager
 from .services.bootstrap import ensure_admin_user
+from .services.seed import ensure_assets
 from .settings import get_settings
+from .ws import gateway as ws_gateway
 
 log = get_logger("main")
 
@@ -29,8 +38,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await conn.run_sync(Base.metadata.create_all)
     async with get_sessionmaker()() as session:
         await ensure_admin_user(session)
+        await ensure_assets(session)
     log.info("api_started", version=__version__, execution_enabled=settings.execution_enabled)
     yield
+    # graceful shutdown: stop all market feeds
+    await get_feed_manager().stop_all()
 
 
 def create_app() -> FastAPI:
@@ -52,6 +64,9 @@ def create_app() -> FastAPI:
     app.include_router(health_router.router)
     app.include_router(auth_router.router)
     app.include_router(dashboard_router.router)
+    app.include_router(market_router.router)
+    app.include_router(data_quality_router.router)
+    app.include_router(ws_gateway.router)
     return app
 
 

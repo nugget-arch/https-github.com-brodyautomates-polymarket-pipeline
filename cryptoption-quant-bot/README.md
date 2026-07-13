@@ -22,12 +22,22 @@ bróker por medios no oficiales y **no ejecuta con dinero real**.
 - La captura aportada es **solo referencia visual**; su win rate no es objetivo
   ni evidencia.
 
-## Estado: Fase 1 (scaffold)
+## Estado: Fase 2 (datos en tiempo real)
 
-Monorepo · Docker Compose · FastAPI · Next.js · PostgreSQL · Redis ·
-autenticación single-user con roles básicos · modelo de dominio · dashboard
-estático. El motor cuantitativo (`packages/quant_engine`) se incorpora por
-fases portando el proyecto ya probado `otc_lab/` del repositorio raíz.
+Fase 1 (scaffold): monorepo · Docker Compose · FastAPI · Next.js · PostgreSQL ·
+Redis · auth single-user con roles · modelo de dominio · dashboard estático.
+
+Fase 2 (datos): `quant_engine.data` con esquema normalizado y providers
+(Sintético, Histórico CSV/Parquet, Replay determinista, Import OTC manual,
+Binance público solo-cripto), validación de calidad con **Polars** (sin
+interpolación ni relleno con futuro), agregación de velas **causal** (solo
+emite barras cerradas), **WebSocket propio** (envelope `{seq,ts,type,payload}`,
+IDs de secuencia, heartbeat, autenticación por cookie, detección de huecos),
+feed de mercado sobre bus de eventos, y **gráfico de precio en tiempo real** en
+`/trading` con reconexión y recuperación de estado vía REST.
+
+El motor cuantitativo restante se incorpora por fases portando el proyecto ya
+probado `otc_lab/` del repositorio raíz.
 
 Objetivo de runtime: Python 3.12 (funciona en ≥3.11), Node ≥20.
 

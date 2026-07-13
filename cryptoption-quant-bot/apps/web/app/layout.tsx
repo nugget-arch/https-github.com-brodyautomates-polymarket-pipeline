@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { KillSwitch } from "@/components/KillSwitch";
+import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "cryptoption-quant-bot",
@@ -48,7 +49,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 ))}
               </ul>
             </nav>
-            <main className="flex-1 p-6">{children}</main>
+            <main className="flex-1 p-6">
+              <Providers>{children}</Providers>
+            </main>
           </div>
         </div>
       </body>

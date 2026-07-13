@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     session_ttl_minutes: int = 720
     rate_limit_per_minute: int = 120
 
+    # Synthetic market-feed pacing (seconds per tick). 1.0 ≈ real time; tests
+    # override with a small value for speed.
+    feed_speed_seconds: float = 1.0
+
     # Mirrors quant_engine.EXECUTION_ENABLED. Real-money execution is disabled
     # in code regardless of this flag; it exists only to make the intent auditable.
     execution_enabled: bool = Field(default=False)
