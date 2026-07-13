@@ -36,7 +36,19 @@ IDs de secuencia, heartbeat, autenticación por cookie, detección de huecos),
 feed de mercado sobre bus de eventos, y **gráfico de precio en tiempo real** en
 `/trading` con reconexión y recuperación de estado vía REST.
 
-El motor cuantitativo restante se incorpora por fases portando el proyecto ya
+Fase 3 (features/labels/modelos): `quant_engine.features` con features 100%
+**causales** (retornos multi-horizonte, EMA+pendiente, RSI, ATR, vol realizada,
+Bollinger z, pendiente de regresión, cuerpo/mechas/posición de vela, volumen
+relativo, spread y su cambio, proxies de flujo, tiempo cíclico, régimen de
+vol/tendencia) y **`FeatureAvailabilityAudit`** (columnas de entrada, lookback,
+shift, riesgo de leakage por feature). `quant_engine.labels` (CALL/PUT con
+vencimientos/latencia/empates, sin cruzar sesiones ni huecos). Modelos
+Random/Trend/MeanReversion + **logística regularizada** con calibración
+temporal (Platt/isotónica, nunca sobre el test). **Tests anti-leakage**
+incluidos, entre ellos que *mutar el futuro no cambia el pasado*.
+
+El motor cuantitativo restante (validación walk-forward, backtest event-driven,
+riesgo, informes) se incorpora en fases siguientes portando el proyecto ya
 probado `otc_lab/` del repositorio raíz.
 
 Objetivo de runtime: Python 3.12 (funciona en ≥3.11), Node ≥20.

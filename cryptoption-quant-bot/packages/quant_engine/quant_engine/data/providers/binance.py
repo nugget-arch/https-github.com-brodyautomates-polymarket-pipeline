@@ -61,7 +61,9 @@ class BinanceMarketDataProvider(MarketDataProvider):
         if httpx is None:
             return []
         interval = _INTERVAL.get(self.interval_seconds, "1m")
-        params = {"symbol": self.symbol, "interval": interval, "limit": limit}
+        params: dict[str, str | int] = {
+            "symbol": self.symbol, "interval": interval, "limit": limit,
+        }
         async with httpx.AsyncClient(timeout=15) as client:
             for host in KLINES_HOSTS:
                 try:

@@ -26,7 +26,10 @@ dev-api:
 dev-web:
 	cd apps/web && npm run dev
 
-test: test-api test-web
+test: test-engine test-api test-web
+
+test-engine:
+	cd packages/quant_engine && pytest -q
 
 test-api:
 	cd apps/api && pytest -q
@@ -35,6 +38,7 @@ test-web:
 	cd apps/web && npm run test -- --run
 
 lint:
+	cd packages/quant_engine && ruff check quant_engine && mypy quant_engine --ignore-missing-imports
 	cd apps/api && ruff check . && mypy cryptoption_api
 	cd apps/web && npm run typecheck
 
