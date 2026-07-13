@@ -58,9 +58,18 @@ perder — verificado por test), con límite de pérdida diaria, cool-off por
 rachas, tope por sesión, kill switch y reducción de exposición por drawdown.
 Monte Carlo de probabilidad de ruina y `PaperBroker` con ledger.
 
-El motor cuantitativo restante (validación walk-forward con purga/embargo,
-CandidateGate, informes) se incorpora en fases siguientes portando el proyecto
-ya probado `otc_lab/` del repositorio raíz.
+Fase 5 (validación): **walk-forward** con ventanas train/val/test no solapadas,
+**purga por horizonte** (una muestra de train cuyo horizonte solape validación
+se descarta) y **embargo** temporal; **holdout final bloqueado** (hash de
+config + confirmación explícita, un solo uso, imposible reutilizar para seguir
+optimizando); **selección de umbral desde la incertidumbre de validación**
+(Wilson), nunca del test; runner que ejecuta cada combo modelo×vencimiento y
+aplica **Benjamini-Hochberg** entre combos para que ninguna combinación
+"rentable por suerte" sobreviva. Sobre ruido puro, ningún combo pasa la
+corrección — verificado por test.
+
+El resto (paper/shadow/manual en vivo, CandidateGate completo, informes,
+registro de experimentos, seguridad) se incorpora en fases siguientes.
 
 Objetivo de runtime: Python 3.12 (funciona en ≥3.11), Node ≥20.
 
