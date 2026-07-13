@@ -47,9 +47,20 @@ Random/Trend/MeanReversion + **logística regularizada** con calibración
 temporal (Platt/isotónica, nunca sobre el test). **Tests anti-leakage**
 incluidos, entre ellos que *mutar el futuro no cambia el pasado*.
 
-El motor cuantitativo restante (validación walk-forward, backtest event-driven,
-riesgo, informes) se incorpora en fases siguientes portando el proyecto ya
-probado `otc_lab/` del repositorio raíz.
+Fase 4 (backtest/riesgo): backtester **event-driven** (eventos tipados,
+payout variable U(base±jitter) con suelo, latencia, rechazos de bróker, máximo
+una operación por activo, empates configurables; PnL con el payout **real** de
+cada operación, nunca retornos porcentuales). Métricas completas de binarias
+(win rate, break-even, edge, VE, profit factor, drawdown y su duración, rachas,
+Brier, log loss, **ECE**, calibración, IC de win rate, p-valor, %NO_TRADE).
+**`RiskManager` anti-martingala por construcción** (el stake nunca sube tras
+perder — verificado por test), con límite de pérdida diaria, cool-off por
+rachas, tope por sesión, kill switch y reducción de exposición por drawdown.
+Monte Carlo de probabilidad de ruina y `PaperBroker` con ledger.
+
+El motor cuantitativo restante (validación walk-forward con purga/embargo,
+CandidateGate, informes) se incorpora en fases siguientes portando el proyecto
+ya probado `otc_lab/` del repositorio raíz.
 
 Objetivo de runtime: Python 3.12 (funciona en ≥3.11), Node ≥20.
 
