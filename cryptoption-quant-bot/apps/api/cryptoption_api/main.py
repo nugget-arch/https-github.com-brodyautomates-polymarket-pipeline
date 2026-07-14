@@ -17,7 +17,9 @@ from .routers import (
     dashboard_router,
     data_quality_router,
     health_router,
+    manual_router,
     market_router,
+    session_router,
 )
 from .runtime.market_feed import get_feed_manager
 from .services.bootstrap import ensure_admin_user
@@ -66,6 +68,8 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router.router)
     app.include_router(market_router.router)
     app.include_router(data_quality_router.router)
+    app.include_router(session_router.router)
+    app.include_router(manual_router.router)
     app.include_router(ws_gateway.router)
     return app
 

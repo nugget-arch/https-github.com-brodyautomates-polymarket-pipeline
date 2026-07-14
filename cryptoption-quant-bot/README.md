@@ -68,8 +68,18 @@ aplica **Benjamini-Hochberg** entre combos para que ninguna combinación
 "rentable por suerte" sobreviva. Sobre ruido puro, ningún combo pasa la
 corrección — verificado por test.
 
-El resto (paper/shadow/manual en vivo, CandidateGate completo, informes,
-registro de experimentos, seguridad) se incorpora en fases siguientes.
+Fase 6 (ejecución simulada): **journal inmutable con hash encadenado** SHA-256
+en Postgres (detecta manipulación y borrados; correcciones = eventos nuevos);
+adapters **Paper / Shadow / Manual** sobre el contrato `BrokerAdapter` (el
+Official sigue deshabilitado); **`TradingRuntime`** determinista (velas
+cerradas → features causales → modelo → umbral → riesgo → broker → journal → WS,
+una operación por activo, kill switch); driver de sesión PAPER/SHADOW
+reproducible; y **flujo de confirmación manual** que compara el resultado
+externo reportado con el **resultado teórico implícito por el precio** (una
+discrepancia delata a un bróker cuyo pago no cuadra con el movimiento real).
+
+El resto (CandidateGate completo, informes, registro de experimentos, endurecido
+de seguridad) se incorpora en fases siguientes.
 
 Objetivo de runtime: Python 3.12 (funciona en ≥3.11), Node ≥20.
 
