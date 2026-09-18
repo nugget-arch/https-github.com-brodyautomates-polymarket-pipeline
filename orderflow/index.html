@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order Flow — BTC</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot"></span> ORDER&nbsp;FLOW
+      <small id="hdr-symbol">BTCUSDT · 1m</small>
+    </div>
+
+    <div class="controls">
+      <label>Par
+        <select id="symbol">
+          <option value="BTCUSDT">BTC/USDT</option>
+          <option value="ETHUSDT">ETH/USDT</option>
+          <option value="SOLUSDT">SOL/USDT</option>
+          <option value="BNBUSDT">BNB/USDT</option>
+        </select>
+      </label>
+      <label>TF
+        <select id="interval">
+          <option value="1m">1m</option>
+          <option value="3m">3m</option>
+          <option value="5m">5m</option>
+          <option value="15m">15m</option>
+          <option value="1h">1h</option>
+          <option value="4h">4h</option>
+        </select>
+      </label>
+      <label>Velas
+        <select id="candles">
+          <option>60</option>
+          <option selected>90</option>
+          <option>120</option>
+          <option>180</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="auto" /> Auto 5s</label>
+      <button id="refresh">Actualizar</button>
+    </div>
+  </header>
+
+  <section class="stats" id="stats">
+    <div class="stat"><span>Último</span><b id="s-last">—</b></div>
+    <div class="stat"><span>Δ acumulado</span><b id="s-delta">—</b></div>
+    <div class="stat"><span>vPOC</span><b id="s-vpoc">—</b></div>
+    <div class="stat"><span>VAH</span><b id="s-vah">—</b></div>
+    <div class="stat"><span>VAL</span><b id="s-val">—</b></div>
+    <div class="stat"><span>Volumen</span><b id="s-vol">—</b></div>
+  </section>
+
+  <main class="stage">
+    <canvas id="chart"></canvas>
+    <div id="tooltip" class="tooltip hidden"></div>
+
+    <aside id="fp" class="footprint hidden">
+      <div class="fp-head">
+        <b id="fp-title">Footprint</b>
+        <button id="fp-close">×</button>
+      </div>
+      <div id="fp-meta" class="fp-meta"></div>
+      <div id="fp-rows" class="fp-rows"></div>
+      <p class="fp-note">Buy/Sell reales por nivel de precio (aggTrades · lado agresor)</p>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <span id="status">Cargando…</span>
+    <span class="legend">
+      <i class="sw buy"></i> agresor comprador &nbsp;
+      <i class="sw sell"></i> agresor vendedor &nbsp;
+      <i class="sw poc"></i> vPOC &nbsp;
+      <i class="sw va"></i> value area (70%)
+    </span>
+    <span>Datos: Binance · <em>prototipo</em></span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
