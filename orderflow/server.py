@@ -392,6 +392,17 @@ class Handler(BaseHTTPRequestHandler):
                 data = _seed_cached(sym, itv, cn, fp)
                 return self._json(data)
 
+            if path == "/api/trades":
+                raw = _get("/api/v3/aggTrades", {
+                    "symbol": arg("symbol", "BTCUSDT").upper(),
+                    "limit": min(300, max(20, int(arg("limit", "120")))),
+                })
+                trades = [{
+                    "p": float(t["p"]), "q": float(t["q"]),
+                    "m": t["m"], "T": t["T"],
+                } for t in raw]
+                return self._json({"trades": trades})
+
             if path == "/api/depth":
                 raw = _get("/api/v3/depth", {
                     "symbol": arg("symbol", "BTCUSDT").upper(),

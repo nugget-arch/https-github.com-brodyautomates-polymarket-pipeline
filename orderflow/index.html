@@ -3,92 +3,138 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order Flow Terminal — BTC</title>
+  <title>OrderFlow Pro — Terminal</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span id="conn" class="conn off" title="conexión"></span>
-      <span class="logo">ORDERFLOW<em>·TERMINAL</em></span>
-      <span id="hdr-symbol" class="hsym">BTCUSDT · 1m</span>
-      <span id="hdr-price" class="hprice">—</span>
-      <span id="hdr-chg" class="hchg">—</span>
+  <div class="app">
+    <!-- ============================ TOOLBAR ============================ -->
+    <header class="toolbar">
+      <div class="tb-group brandg">
+        <span id="conn" class="conn"></span>
+        <span class="brand">OrderFlow<span>Pro</span></span>
+      </div>
+
+      <div class="tb-sep"></div>
+
+      <div class="tb-group">
+        <select id="symbol" class="tb-select">
+          <option value="BTCUSDT">BTCUSDT</option>
+          <option value="ETHUSDT">ETHUSDT</option>
+          <option value="SOLUSDT">SOLUSDT</option>
+          <option value="BNBUSDT">BNBUSDT</option>
+          <option value="XRPUSDT">XRPUSDT</option>
+        </select>
+      </div>
+
+      <div class="tb-group seg" id="tf-seg">
+        <button data-tf="1m" class="on">1m</button>
+        <button data-tf="3m">3m</button>
+        <button data-tf="5m">5m</button>
+        <button data-tf="15m">15m</button>
+        <button data-tf="1h">1h</button>
+      </div>
+
+      <div class="tb-sep"></div>
+
+      <div class="tb-group seg" id="type-seg">
+        <button data-type="footprint" class="on">Footprint</button>
+        <button data-type="candles">Velas</button>
+        <button data-type="bars">Barras</button>
+      </div>
+
+      <div class="tb-group">
+        <label class="tb-lbl">Cluster</label>
+        <select id="fpmode" class="tb-select sm">
+          <option value="bidask">Bid×Ask</option>
+          <option value="delta">Delta</option>
+          <option value="volume">Volumen</option>
+        </select>
+      </div>
+
+      <div class="tb-group">
+        <label class="tb-lbl">Velas</label>
+        <select id="candles" class="tb-select sm">
+          <option>30</option><option selected>45</option><option>60</option><option>90</option>
+        </select>
+      </div>
+
+      <div class="tb-sep"></div>
+
+      <div class="tb-group chips" id="pane-chips">
+        <button data-pane="delta" class="chip on">Delta</button>
+        <button data-pane="cvd" class="chip on">CVD</button>
+        <button data-pane="volume" class="chip on">Vol</button>
+        <button data-pane="profile" class="chip on">Perfil</button>
+        <button data-pane="dom" class="chip on">DOM</button>
+        <button data-pane="tape" class="chip on">T&amp;S</button>
+      </div>
+
+      <div class="tb-spacer"></div>
+      <div class="tb-group">
+        <span id="tb-clock" class="tb-clock">--:--:--</span>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- ========================= LEFT RAIL ========================= -->
+      <nav class="rail" id="rail">
+        <button class="rl on" data-tool="cross" title="Crosshair">
+          <svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="10" cy="10" r="2.4" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
+        <button class="rl" data-tool="hline" title="Línea horizontal">
+          <svg viewBox="0 0 20 20"><path d="M2 10h16" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="10" r="1.6" fill="currentColor"/></svg></button>
+        <button class="rl" data-tool="trend" title="Línea de tendencia">
+          <svg viewBox="0 0 20 20"><path d="M3 16L17 4" stroke="currentColor" stroke-width="1.4"/><circle cx="3" cy="16" r="1.6" fill="currentColor"/><circle cx="17" cy="4" r="1.6" fill="currentColor"/></svg></button>
+        <button class="rl" data-tool="ruler" title="Regla / medir">
+          <svg viewBox="0 0 20 20"><rect x="3" y="7" width="14" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M7 7v3M11 7v3M15 7v3" stroke="currentColor" stroke-width="1"/></svg></button>
+        <button class="rl" data-tool="alert" title="Alerta de precio">
+          <svg viewBox="0 0 20 20"><path d="M6 14V9a4 4 0 018 0v5l1.5 2H4.5L6 14z" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M8.5 17a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+        <div class="rl-sep"></div>
+        <button class="rl" data-tool="magnet" title="Imán (snap)">
+          <svg viewBox="0 0 20 20"><path d="M5 4v6a5 5 0 0010 0V4h-3v6a2 2 0 01-4 0V4z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+        <button class="rl" data-tool="clear" title="Borrar dibujos">
+          <svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+      </nav>
+
+      <!-- ========================= CHART ============================ -->
+      <section class="chart-wrap">
+        <canvas id="chart"></canvas>
+        <div id="legend" class="legend"></div>
+        <div id="tooltip" class="tooltip hidden"></div>
+      </section>
+
+      <!-- ========================= RIGHT DOCK ======================= -->
+      <aside class="dock">
+        <div class="dock-panel dom">
+          <div class="dp-head">
+            <span>DEPTH OF MARKET</span>
+            <span id="dom-imb" class="dp-imb">—</span>
+          </div>
+          <div id="ladder" class="ladder"><div class="empty">Esperando order book…</div></div>
+        </div>
+        <div class="dock-panel tape">
+          <div class="dp-head">
+            <span>TIME &amp; SALES</span>
+            <label class="dp-flt">≥ <input id="tape-min" type="number" value="0.5" step="0.1" min="0" /></label>
+          </div>
+          <div class="tape-head"><span>Hora</span><span>Precio</span><span>Tamaño</span></div>
+          <div id="tape" class="tape-rows"><div class="empty">Esperando trades…</div></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="controls">
-      <label>Par
-        <select id="symbol">
-          <option value="BTCUSDT">BTC/USDT</option>
-          <option value="ETHUSDT">ETH/USDT</option>
-          <option value="SOLUSDT">SOL/USDT</option>
-          <option value="BNBUSDT">BNB/USDT</option>
-          <option value="XRPUSDT">XRP/USDT</option>
-        </select>
-      </label>
-      <label>TF
-        <select id="interval">
-          <option value="1m">1m</option>
-          <option value="3m">3m</option>
-          <option value="5m">5m</option>
-          <option value="15m">15m</option>
-        </select>
-      </label>
-      <label>Velas
-        <select id="candles">
-          <option>40</option>
-          <option selected>60</option>
-          <option>90</option>
-          <option>120</option>
-        </select>
-      </label>
-      <div class="seg" id="mode-seg">
-        <button class="sg on" data-mode="chart">Velas</button>
-        <button class="sg" data-mode="footprint">Footprint</button>
-      </div>
-      <div class="toggles">
-        <button class="tg on" data-tg="profile">Perfil</button>
-        <button class="tg on" data-tg="vwap">VWAP</button>
-        <button class="tg on" data-tg="depth">L2 Depth</button>
-        <button class="tg on" data-tg="bubbles">Delta</button>
-      </div>
-    </div>
-  </header>
-
-  <div class="body">
-    <main class="stage">
-      <canvas id="chart"></canvas>
-      <div id="tooltip" class="tooltip hidden"></div>
-    </main>
-
-    <aside class="side">
-      <div class="panel book">
-        <h3>Order Book <span class="tag">L2</span>
-          <span id="ob-imb" class="imb">—</span>
-        </h3>
-        <div id="ladder" class="ladder"><div class="sig-empty">Esperando order book…</div></div>
-      </div>
-
-      <div class="panel live">
-        <h3>Vela en curso</h3>
-        <div class="kv"><span>Delta</span><b id="l-delta">—</b></div>
-        <div class="kv"><span>Buy / Sell</span><b id="l-bs" class="small">—</b></div>
-        <div class="kv"><span>CVD</span><b id="l-cvd">—</b></div>
-        <div class="kv"><span>vPOC / VAH / VAL</span><b id="l-va" class="small">—</b></div>
-        <div class="kv"><span>Bid / Ask depth</span><b id="l-depth" class="small">—</b></div>
-      </div>
-
-      <div class="panel signals">
-        <h3>Señales <span id="sig-count" class="badge">0</span></h3>
-        <div id="sig-list" class="sig-list"></div>
-      </div>
-    </aside>
+    <!-- =========================== STATUS BAR ========================= -->
+    <footer class="statusbar">
+      <span id="st-conn" class="st"><i class="dot"></i> —</span>
+      <span id="st-sym" class="st">—</span>
+      <span id="st-last" class="st">—</span>
+      <span id="st-spread" class="st">spread —</span>
+      <span id="st-ba" class="st">bid — / ask —</span>
+      <span id="st-cvd" class="st">CVD —</span>
+      <span class="st spacer"></span>
+      <span class="st src">Binance L2 + trades en vivo · <em>prototipo</em></span>
+    </footer>
   </div>
-
-  <footer class="foot">
-    <span id="status">Cargando…</span>
-    <span class="src">L2 order book + trades en vivo: Binance · <em>prototipo</em></span>
-  </footer>
 
   <script type="module" src="app.js"></script>
 </body>
