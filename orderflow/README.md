@@ -1,82 +1,135 @@
-# OrderFlow Pro — terminal de order flow (estilo ATAS)
+# OrderFlow Pro
 
-Terminal de trading de **order flow** para cripto, con datos **reales** de Binance
-(REST para el seed + **WebSocket** en vivo: trades, velas y **order book L2**).
-Diseño profesional y denso, sin adornos.
+A professional, browser-based **order-flow trading terminal** for crypto — real
+Binance market data, no API key, no build step, no external dependencies.
+Footprint charts, full L2 depth of market, Bookmap-style liquidity heatmap,
+Time & Sales, order-flow detections, alerts and drawing tools.
 
-![preview](preview.png)
+![OrderFlow Pro](preview.png)
 
-## Paneles (como ATAS)
+> Live liquidity heatmap over candles:
+> ![Heatmap](preview-heat.png)
 
-- **Gráfico** con 3 tipos: **Footprint** (cluster bid×ask por nivel), **Velas** y **Barras**.
-  - Modos de cluster: **Bid×Ask**, **Delta** o **Volumen**.
-  - Imbalances diagonales resaltados, **stacked imbalance**, **POC** por vela.
-- **Perfil de volumen** de sesión (azul sobre POC, rojo debajo) + **vPOC / VAH / VAL** + **VWAP**.
-- **Paneles de indicadores** apilados y alineados al tiempo: **Delta**, **CVD**
-  (delta acumulado) y **Volumen**.
-- **DOM — Depth of Market**: escalera L2 real (bids/asks, tamaños con barra,
-  spread, totales Σ, imbalance del libro). Marca **❄ iceberg** y **◆ absorción**.
-- **Time & Sales**: cinta de trades en vivo (hora, precio, tamaño), coloreada por
-  lado, con resaltado de **trades grandes** (●) y umbral configurable.
-- **Crosshair** con etiquetas de precio/tiempo y **leyenda OHLCV+Δ** arriba a la izquierda.
-- **Herramientas de dibujo**: línea horizontal, tendencia, regla (mide $/%/velas),
-  alerta de precio, imán (snap a OHLC) y borrar.
-- **Barra de estado**: conexión, símbolo, último, spread, mejor bid/ask, CVD.
+---
 
-## Detecciones
+## Features
 
-| Señal | Fuente | Cómo |
-|---|---|---|
-| **Iceberg** | **L2 + trades** | volumen ejecutado ≫ tamaño mostrado por el libro + recargas → orden oculta |
-| **Absorción** | **L2 + trades** | nivel de reposo grande que aguanta agresión fuerte sin romperse |
-| **Imbalance diagonal** | footprint | `ask[n]` vs `bid[n-1]` (compra) / `bid[n]` vs `ask[n+1]` (venta), ratio ≥ 300% |
-| **Stacked imbalance** | footprint | ≥ 3 imbalances consecutivos en la misma dirección |
+**Charting**
+- Chart types: **Footprint** (bid×ask clusters), **Candles**, **Bars**.
+- Footprint cluster modes: **Bid×Ask**, **Delta**, **Volume**; configurable
+  ticks-per-row.
+- Session **volume profile** (blue above POC / red below), **vPOC / VAH / VAL**,
+  **VWAP**.
+- Aligned indicator panes: **Delta**, **Cumulative Delta (CVD)**, **Volume**.
+- Crosshair with price/time labels and an OHLCV+Δ legend.
 
-## Datos (Binance, sin API key)
+**Order book (L2)**
+- **Full depth book** maintained via REST snapshot + incremental `@depth` diffs
+  (correct Binance sync protocol with gap-detection and automatic re-sync).
+- **Depth of Market** ladder: sizes, spread, cumulative totals, book imbalance.
+- **Liquidity heatmap** (Bookmap-style) layered behind the chart.
 
-| Qué | Fuente |
-|---|---|
-| Velas + delta por vela | `klines` / `@kline` (incluye taker-buy) |
-| Perfil / vPOC / VAH / VAL | derivado de las velas |
-| Footprint (bid/ask por nivel) | `aggTrades` (seed) + `@aggTrade` (live) |
-| Order book **L2** | `/api/v3/depth` (seed) + `@depth20@100ms` (live) |
-| Time & Sales | `aggTrades` (seed) + `@aggTrade` (live) |
+**Order-flow detections**
+- **Iceberg** (executed volume ≫ displayed size + refills — needs L2).
+- **Absorption** (large resting level that holds under heavy aggression).
+- **Diagonal imbalance** (ratio configurable) and **stacked imbalance**.
 
-El servidor Python arma el seed y lo cachea; el streaming en vivo (trades, velas,
-libro) lo hace el navegador directo contra Binance. Si el WebSocket está bloqueado,
-cae a *polling* REST automáticamente.
+**Time & Sales**
+- Live print feed, side-coloured, large-trade highlighting, configurable threshold.
 
-## Cómo correrlo
+**Alerts**
+- **Price-cross** and **order-flow** alerts (iceberg / absorption / stacked)
+  that fire a toast, a sound and a browser notification. Managed in the Alerts panel.
 
-Solo **Python 3.8+**, sin dependencias externas:
+**Tools & UX**
+- Drawing tools: horizontal line, trendline, ruler ($/%/bars), price alert,
+  magnet snap, clear.
+- Settings modal (imbalance %, stacked min, cluster ticks, big-trade threshold,
+  sound, notifications, heatmap).
+- **Keyboard shortcuts**, **deep-links**, and **persistence** of your whole
+  workspace (symbol, timeframe, layout, drawings, alerts) via `localStorage`.
+- Status bar: connection, price, spread, best bid/ask, CVD, book levels, updates/s.
+- Automatic **REST fallback** if the WebSocket is blocked; **auto-reconnect**.
 
-```bash
-python3 orderflow/server.py     # http://localhost:8787
+## Architecture
+
+```
+Browser (ES modules, canvas)                Server (Python stdlib http.server)
+├─ app.js        orchestration + render     ├─ /api/seed     OHLC+profile+footprint (cached)
+├─ footprint.js  cluster model + detections ├─ /api/depth    L2 snapshot (≤5000)
+├─ orderbook.js  full L2 book + diff sync    ├─ /api/trades   recent aggTrades
+├─ heatmap.js    liquidity heatmap buffer   ├─ /api/health   liveness + upstream
+└─ alerts.js     alerts engine              └─ /api/config   symbols / intervals / version
+        │                                            │
+        └── live WebSocket ─────────────────► Binance market data (data-*.binance.vision)
+            @aggTrade · @kline · @depth@100ms
 ```
 
-- Toolbar: instrumento · TF (1m–1h) · tipo (Footprint/Velas/Barras) · modo cluster ·
-  nº de velas · chips de paneles (Delta/CVD/Vol/Perfil/DOM/T&S).
-- Deep-links: `?symbol=ETHUSDT&tf=5m&type=candles`.
-- Variable `ORDERFLOW_PORT`.
+The server only builds the historical **seed** and proxies snapshots; all live
+streaming (trades, klines, full order book) runs **directly in the browser**
+against Binance, so the backend stays tiny and stateless.
 
-## Endpoints
+## Data sources (Binance public, no API key)
 
-- `GET /api/seed` — OHLC + perfil + value area + footprint real.
-- `GET /api/depth` — snapshot del order book L2.
-- `GET /api/trades` — trades recientes (seed del Time & Sales).
+| Signal | Source |
+|---|---|
+| Candles + per-candle delta | `klines` / `@kline` (taker-buy volume) |
+| Volume profile / vPOC / VAH / VAL | derived from candles |
+| Footprint (bid/ask per level) | `aggTrades` seed + `@aggTrade` live |
+| Order book L2 | `/api/v3/depth` snapshot + `@depth@100ms` diffs |
+| Time & Sales | `aggTrades` seed + `@aggTrade` live |
 
-## Límites del prototipo (honestos)
+## Run
 
-- El stream `@depth20` da los **20 niveles** cercanos al spread; para un heatmap de
-  liquidez completo tipo Bookmap haría falta el libro completo con diffs (`@depth`).
-- No es literalmente ATAS: es un clon funcional de sus vistas principales
-  (footprint, DOM, T&S, indicadores, dibujos). No incluye ejecución de órdenes,
-  cuenta de broker, backtesting ni todos sus indicadores.
-- Sin persistencia ni login: demo técnica de una sola página.
+Requires **Python 3.8+** only — no `pip install`, no Node build.
 
-## Siguientes pasos posibles
+```bash
+python3 server.py                 # http://localhost:8787
+# or
+./run.sh                          # runs tests, then serves
+./run.sh test                     # just the tests
+```
 
-- Heatmap de liquidez histórico (libro completo con diffs incrementales).
-- Alertas push/webhook sobre iceberg, absorción y stacked imbalance.
-- Guardar/reproducir sesiones (replay de footprint + libro + cinta).
-- Más indicadores (VWAP bands, delta divergence, cumulative delta por sesión).
+Environment: `ORDERFLOW_HOST` (default `0.0.0.0`), `ORDERFLOW_PORT` (default `8787`).
+
+### Docker
+
+```bash
+docker build -t orderflow-pro .
+docker run -p 8787:8787 orderflow-pro     # includes a /api/health healthcheck
+```
+
+## Keyboard shortcuts
+
+`F` footprint · `C` candles · `B` bars · `H` heatmap · `V` crosshair ·
+`A` price-alert tool · `S` settings · `+` / `−` more/less candles · `Esc` close.
+
+## Deep-links
+
+`/?symbol=ETHUSDT&tf=5m&type=candles&heatmap=1`
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Covers the server's order-flow math (delta, volume profile, value area, tick
+sizing). Detection logic (iceberg/absorption/imbalance) lives in the browser
+modules and is exercised live against the stream.
+
+## Notes & limits
+
+- Uses Binance's public **market data** only — this is analysis/visualisation,
+  **not** an execution platform (no broker account, no order placement).
+- The liquidity heatmap builds **forward** from load (past book state can't be
+  reconstructed from public data) — exactly how a live depth heatmap behaves.
+- Detections are heuristics tuned for the near-spread book; treat them as signals,
+  not certainties.
+
+## Roadmap
+
+- Persisted heatmap history / session replay.
+- Server-side alert delivery (webhook / Telegram / email).
+- Multi-chart layouts and a watchlist.
+- More studies (VWAP bands, delta divergence, HVN/LVN zones).

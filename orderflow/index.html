@@ -3,127 +3,111 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0d12" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <title>OrderFlow Pro — Terminal</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app">
-    <!-- ============================ TOOLBAR ============================ -->
     <header class="toolbar">
       <div class="tb-group brandg">
         <span id="conn" class="conn"></span>
         <span class="brand">OrderFlow<span>Pro</span></span>
       </div>
-
       <div class="tb-sep"></div>
-
       <div class="tb-group">
         <select id="symbol" class="tb-select">
-          <option value="BTCUSDT">BTCUSDT</option>
-          <option value="ETHUSDT">ETHUSDT</option>
-          <option value="SOLUSDT">SOLUSDT</option>
-          <option value="BNBUSDT">BNBUSDT</option>
-          <option value="XRPUSDT">XRPUSDT</option>
+          <option value="BTCUSDT">BTCUSDT</option><option value="ETHUSDT">ETHUSDT</option>
+          <option value="SOLUSDT">SOLUSDT</option><option value="BNBUSDT">BNBUSDT</option>
+          <option value="XRPUSDT">XRPUSDT</option><option value="DOGEUSDT">DOGEUSDT</option>
+          <option value="ADAUSDT">ADAUSDT</option><option value="LINKUSDT">LINKUSDT</option>
         </select>
       </div>
-
       <div class="tb-group seg" id="tf-seg">
-        <button data-tf="1m" class="on">1m</button>
-        <button data-tf="3m">3m</button>
-        <button data-tf="5m">5m</button>
-        <button data-tf="15m">15m</button>
-        <button data-tf="1h">1h</button>
+        <button data-tf="1m" class="on">1m</button><button data-tf="3m">3m</button>
+        <button data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button>
       </div>
-
       <div class="tb-sep"></div>
-
       <div class="tb-group seg" id="type-seg">
         <button data-type="footprint" class="on">Footprint</button>
-        <button data-type="candles">Velas</button>
-        <button data-type="bars">Barras</button>
+        <button data-type="candles">Velas</button><button data-type="bars">Barras</button>
       </div>
-
       <div class="tb-group">
         <label class="tb-lbl">Cluster</label>
-        <select id="fpmode" class="tb-select sm">
-          <option value="bidask">Bid×Ask</option>
-          <option value="delta">Delta</option>
-          <option value="volume">Volumen</option>
-        </select>
+        <select id="fpmode" class="tb-select sm"><option value="bidask">Bid×Ask</option><option value="delta">Delta</option><option value="volume">Volumen</option></select>
       </div>
-
       <div class="tb-group">
         <label class="tb-lbl">Velas</label>
-        <select id="candles" class="tb-select sm">
-          <option>30</option><option selected>45</option><option>60</option><option>90</option>
-        </select>
+        <select id="candles" class="tb-select sm"><option>30</option><option selected>45</option><option>60</option><option>90</option></select>
       </div>
-
       <div class="tb-sep"></div>
-
       <div class="tb-group chips" id="pane-chips">
         <button data-pane="delta" class="chip on">Delta</button>
         <button data-pane="cvd" class="chip on">CVD</button>
         <button data-pane="volume" class="chip on">Vol</button>
         <button data-pane="profile" class="chip on">Perfil</button>
+        <button data-pane="heatmap" class="chip">Heatmap</button>
         <button data-pane="dom" class="chip on">DOM</button>
         <button data-pane="tape" class="chip on">T&amp;S</button>
       </div>
-
       <div class="tb-spacer"></div>
       <div class="tb-group">
+        <button id="btn-settings" class="icon-btn" title="Configuración (S)">
+          <svg viewBox="0 0 20 20"><path d="M10 6.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M15.8 4.2l-1.4 1.4M5.6 14.4l-1.4 1.4" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
         <span id="tb-clock" class="tb-clock">--:--:--</span>
       </div>
     </header>
 
     <div class="main">
-      <!-- ========================= LEFT RAIL ========================= -->
       <nav class="rail" id="rail">
-        <button class="rl on" data-tool="cross" title="Crosshair">
-          <svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="10" cy="10" r="2.4" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
-        <button class="rl" data-tool="hline" title="Línea horizontal">
-          <svg viewBox="0 0 20 20"><path d="M2 10h16" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="10" r="1.6" fill="currentColor"/></svg></button>
-        <button class="rl" data-tool="trend" title="Línea de tendencia">
-          <svg viewBox="0 0 20 20"><path d="M3 16L17 4" stroke="currentColor" stroke-width="1.4"/><circle cx="3" cy="16" r="1.6" fill="currentColor"/><circle cx="17" cy="4" r="1.6" fill="currentColor"/></svg></button>
-        <button class="rl" data-tool="ruler" title="Regla / medir">
-          <svg viewBox="0 0 20 20"><rect x="3" y="7" width="14" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M7 7v3M11 7v3M15 7v3" stroke="currentColor" stroke-width="1"/></svg></button>
-        <button class="rl" data-tool="alert" title="Alerta de precio">
-          <svg viewBox="0 0 20 20"><path d="M6 14V9a4 4 0 018 0v5l1.5 2H4.5L6 14z" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M8.5 17a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+        <button class="rl on" data-tool="cross" title="Crosshair (V)"><svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="10" cy="10" r="2.4" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
+        <button class="rl" data-tool="hline" title="Línea horizontal"><svg viewBox="0 0 20 20"><path d="M2 10h16" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="10" r="1.6" fill="currentColor"/></svg></button>
+        <button class="rl" data-tool="trend" title="Tendencia"><svg viewBox="0 0 20 20"><path d="M3 16L17 4" stroke="currentColor" stroke-width="1.4"/><circle cx="3" cy="16" r="1.6" fill="currentColor"/><circle cx="17" cy="4" r="1.6" fill="currentColor"/></svg></button>
+        <button class="rl" data-tool="ruler" title="Regla / medir"><svg viewBox="0 0 20 20"><rect x="3" y="7" width="14" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M7 7v3M11 7v3M15 7v3" stroke="currentColor" stroke-width="1"/></svg></button>
+        <button class="rl" data-tool="alert" title="Alerta de precio"><svg viewBox="0 0 20 20"><path d="M6 14V9a4 4 0 018 0v5l1.5 2H4.5L6 14z" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M8.5 17a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
         <div class="rl-sep"></div>
-        <button class="rl" data-tool="magnet" title="Imán (snap)">
-          <svg viewBox="0 0 20 20"><path d="M5 4v6a5 5 0 0010 0V4h-3v6a2 2 0 01-4 0V4z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
-        <button class="rl" data-tool="clear" title="Borrar dibujos">
-          <svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+        <button class="rl" data-tool="magnet" title="Imán (snap)"><svg viewBox="0 0 20 20"><path d="M5 4v6a5 5 0 0010 0V4h-3v6a2 2 0 01-4 0V4z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+        <button class="rl" data-tool="clear" title="Borrar dibujos"><svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
       </nav>
 
-      <!-- ========================= CHART ============================ -->
       <section class="chart-wrap">
         <canvas id="chart"></canvas>
         <div id="legend" class="legend"></div>
+        <div id="heat-legend" class="heat-legend hidden">Liquidez L2 <i></i> baja · alta</div>
         <div id="tooltip" class="tooltip hidden"></div>
+        <div id="toasts" class="toasts"></div>
       </section>
 
-      <!-- ========================= RIGHT DOCK ======================= -->
       <aside class="dock">
         <div class="dock-panel dom">
-          <div class="dp-head">
-            <span>DEPTH OF MARKET</span>
-            <span id="dom-imb" class="dp-imb">—</span>
-          </div>
+          <div class="dp-head"><span>DEPTH OF MARKET</span><span id="dom-imb" class="dp-imb">—</span></div>
           <div id="ladder" class="ladder"><div class="empty">Esperando order book…</div></div>
         </div>
-        <div class="dock-panel tape">
-          <div class="dp-head">
-            <span>TIME &amp; SALES</span>
-            <label class="dp-flt">≥ <input id="tape-min" type="number" value="0.5" step="0.1" min="0" /></label>
+        <div class="dock-panel botpanel">
+          <div class="dp-tabs">
+            <button class="dp-tab on" data-tab="tape">Time &amp; Sales</button>
+            <button class="dp-tab" data-tab="alerts">Alertas <span id="al-count" class="mini">0</span></button>
+            <label class="dp-flt" id="tape-flt">≥ <input id="tape-min" type="number" value="0.5" step="0.1" min="0" /></label>
           </div>
-          <div class="tape-head"><span>Hora</span><span>Precio</span><span>Tamaño</span></div>
-          <div id="tape" class="tape-rows"><div class="empty">Esperando trades…</div></div>
+          <div id="tab-tape" class="tabview">
+            <div class="tape-head"><span>Hora</span><span>Precio</span><span>Tamaño</span></div>
+            <div id="tape" class="tape-rows"><div class="empty">Esperando trades…</div></div>
+          </div>
+          <div id="tab-alerts" class="tabview hidden">
+            <div id="alerts-list" class="alerts-list"><div class="empty">Sin alertas. Usa la campana ▲ o el botón +.</div></div>
+            <div class="alerts-actions">
+              <button id="al-add" class="mini-btn">+ Precio actual</button>
+              <button id="al-ice" class="mini-btn">+ Iceberg</button>
+              <button id="al-abs" class="mini-btn">+ Absorción</button>
+              <button id="al-stk" class="mini-btn">+ Stacked</button>
+            </div>
+          </div>
         </div>
       </aside>
     </div>
 
-    <!-- =========================== STATUS BAR ========================= -->
     <footer class="statusbar">
       <span id="st-conn" class="st"><i class="dot"></i> —</span>
       <span id="st-sym" class="st">—</span>
@@ -131,9 +115,29 @@
       <span id="st-spread" class="st">spread —</span>
       <span id="st-ba" class="st">bid — / ask —</span>
       <span id="st-cvd" class="st">CVD —</span>
+      <span id="st-book" class="st">L2 —</span>
+      <span id="st-ups" class="st">0 ups</span>
       <span class="st spacer"></span>
-      <span class="st src">Binance L2 + trades en vivo · <em>prototipo</em></span>
+      <span class="st src">Binance L2 + trades en vivo · v<span id="st-ver">1.0.0</span></span>
     </footer>
+  </div>
+
+  <!-- settings modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><b>Configuración</b><button id="modal-close" class="icon-btn">✕</button></div>
+      <div class="modal-body">
+        <div class="set-row"><label>Imbalance ratio (%)</label><input id="set-imb" type="number" value="300" step="25" min="100"></div>
+        <div class="set-row"><label>Stacked mínimo</label><input id="set-stk" type="number" value="3" step="1" min="2"></div>
+        <div class="set-row"><label>Cluster ticks/fila</label><input id="set-ticks" type="number" value="1" step="1" min="1"></div>
+        <div class="set-row"><label>Umbral trade grande</label><input id="set-big" type="number" value="0.5" step="0.1" min="0"></div>
+        <div class="set-row"><label>Sonido de alertas</label><input id="set-sound" type="checkbox" checked></div>
+        <div class="set-row"><label>Notificaciones navegador</label><input id="set-notify" type="checkbox"></div>
+        <div class="set-row"><label>Heatmap de liquidez</label><input id="set-heat" type="checkbox"></div>
+        <div class="set-hint">Atajos: <b>F</b>ootprint · <b>C</b>andles · <b>B</b>ars · <b>H</b>eatmap · <b>V</b> crosshair · <b>A</b>lerta · <b>S</b> settings · <b>+/−</b> velas</div>
+      </div>
+      <div class="modal-foot"><button id="set-reset" class="mini-btn">Restablecer</button><button id="modal-ok" class="ok-btn">Cerrar</button></div>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>

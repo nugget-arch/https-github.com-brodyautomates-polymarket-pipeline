@@ -34,6 +34,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 BASE = "https://data-api.binance.vision"
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("ORDERFLOW_PORT", "8787"))
+HOST = os.environ.get("ORDERFLOW_HOST", "0.0.0.0")
+VERSION = "1.0.0"
 
 # Milliseconds per supported interval.
 INTERVAL_MS = {
@@ -340,8 +342,13 @@ STATIC = {
     "/app.js": ("app.js", "application/javascript; charset=utf-8"),
     "/footprint.js": ("footprint.js", "application/javascript; charset=utf-8"),
     "/orderbook.js": ("orderbook.js", "application/javascript; charset=utf-8"),
+    "/alerts.js": ("alerts.js", "application/javascript; charset=utf-8"),
+    "/heatmap.js": ("heatmap.js", "application/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
 }
+
+SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT"]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -403,10 +410,24 @@ class Handler(BaseHTTPRequestHandler):
                 } for t in raw]
                 return self._json({"trades": trades})
 
+            if path == "/api/health":
+                ok = True
+                try:
+                    _get("/api/v3/ping", {})
+                except Exception:  # noqa: BLE001
+                    ok = False
+                return self._json({"status": "ok" if ok else "degraded",
+                                   "upstream": BASE, "version": VERSION,
+                                   "time": int(time.time() * 1000)})
+
+            if path == "/api/config":
+                return self._json({"version": VERSION, "symbols": SYMBOLS,
+                                   "intervals": list(INTERVAL_MS.keys())})
+
             if path == "/api/depth":
                 raw = _get("/api/v3/depth", {
                     "symbol": arg("symbol", "BTCUSDT").upper(),
-                    "limit": min(100, max(5, int(arg("limit", "50")))),
+                    "limit": min(5000, max(5, int(arg("limit", "1000")))),
                 })
                 return self._json({
                     "lastUpdateId": raw.get("lastUpdateId", 0),
@@ -427,8 +448,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"Order-flow prototype running -> http://localhost:{PORT}")
+    srv = ThreadingHTTPServer((HOST, PORT), Handler)
+    print(f"OrderFlow Pro v{VERSION} -> http://localhost:{PORT}")
     print("Data: Binance public market data (data-api.binance.vision)")
     try:
         srv.serve_forever()

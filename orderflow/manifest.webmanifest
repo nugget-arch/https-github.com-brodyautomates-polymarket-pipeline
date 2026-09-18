@@ -1,0 +1,10 @@
+{
+  "name": "OrderFlow Pro",
+  "short_name": "OFPro",
+  "description": "Professional order-flow terminal: footprint, DOM, liquidity heatmap and Time & Sales with live Binance data.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0d12",
+  "theme_color": "#0a0d12",
+  "icons": []
+}
