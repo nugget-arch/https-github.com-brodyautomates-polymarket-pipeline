@@ -21,9 +21,12 @@ Run:   python3 orderflow/server.py   then open  http://localhost:8787
 from __future__ import annotations
 
 import json
+import math
 import os
 import ssl
 import sys
+import threading
+import time
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -234,12 +237,108 @@ def build_chart(symbol: str, interval: str, candles_n: int) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Footprint seed — real bid/ask clusters per candle (for immediate display)
+# --------------------------------------------------------------------------- #
+def suggest_basetick(price: float) -> float:
+    """A fine, price-scaled base tick so live clusters stay bounded but precise.
+    BTC(~77k)->1, ETH(~3k)->0.1, SOL(~150)->0.01, BNB(~600)->0.1."""
+    if price <= 0:
+        return 0.01
+    exp = math.floor(math.log10(price)) - 4
+    return float(10 ** exp)
+
+
+def footprint_levels(symbol: str, open_ms: int, interval: str, basetick: float) -> dict:
+    """Real per-price-level bid/ask volume for one candle, keyed by tick index.
+    Returns compact rows [[idx, bid, ask], ...] where price = idx * basetick."""
+    dur = INTERVAL_MS.get(interval, 60_000)
+    trades = fetch_agg_trades(symbol, open_ms, open_ms + dur)
+    levels: dict = {}
+    buy = sell = 0.0
+    for t in trades:
+        p = float(t["p"])
+        q = float(t["q"])
+        idx = int(round(p / basetick))
+        cell = levels.setdefault(idx, [0.0, 0.0])  # [bid(=sell aggr), ask(=buy aggr)]
+        if t["m"]:                 # buyer is maker -> aggressive SELL hits the bid
+            cell[0] += q
+            sell += q
+        else:                      # buyer is taker -> aggressive BUY lifts the ask
+            cell[1] += q
+            buy += q
+    rows = [[idx, round(v[0], 4), round(v[1], 4)] for idx, v in sorted(levels.items())]
+    poc_idx = max(levels, key=lambda i: levels[i][0] + levels[i][1]) if levels else 0
+    return {
+        "rows": rows,
+        "buy": round(buy, 4),
+        "sell": round(sell, 4),
+        "delta": round(buy - sell, 4),
+        "poc": round(poc_idx * basetick, 2),
+        "trades": len(trades),
+    }
+
+
+def build_seed(symbol: str, interval: str, candles_n: int, fp_n: int) -> dict:
+    """Everything the client needs to render immediately, before the live WS
+    takes over: full-window candles + profile + value area, plus real footprint
+    clusters for the most recent `fp_n` candles."""
+    raw = fetch_klines(symbol, interval, candles_n)
+    candles = parse_candles(raw)
+    prof = volume_profile(candles)
+    basetick = suggest_basetick(candles[-1]["c"] if candles else 1.0)
+
+    footprints = []
+    for c in candles[-fp_n:]:
+        fp = footprint_levels(symbol, c["t"], interval, basetick)
+        footprints.append({
+            "t": c["t"], "o": c["o"], "h": c["h"], "l": c["l"], "c": c["c"],
+            **fp,
+        })
+
+    return {
+        "symbol": symbol,
+        "interval": interval,
+        "intervalMs": INTERVAL_MS.get(interval, 60_000),
+        "basetick": basetick,
+        "candles": candles,
+        "footprints": footprints,
+        "lastPrice": candles[-1]["c"] if candles else 0.0,
+        "cumDelta": round(sum(c["delta"] for c in candles), 4),
+        "totalVol": round(sum(c["v"] for c in candles), 4),
+        "serverTime": _get("/api/v3/time", {}).get("serverTime", 0),
+        **prof,
+    }
+
+
+# Short-lived seed cache so rapid reloads / multiple viewers don't refetch the
+# whole footprint window. Live updates ride the WebSocket, so a few seconds of
+# staleness on the historical seed is invisible.
+_SEED_CACHE: dict = {}
+_SEED_LOCK = threading.Lock()
+_SEED_TTL = 60.0
+
+
+def _seed_cached(symbol: str, interval: str, candles_n: int, fp_n: int) -> dict:
+    key = (symbol, interval, candles_n, fp_n)
+    now = time.time()
+    with _SEED_LOCK:
+        hit = _SEED_CACHE.get(key)
+        if hit and now - hit[0] < _SEED_TTL:
+            return hit[1]
+    data = build_seed(symbol, interval, candles_n, fp_n)
+    with _SEED_LOCK:
+        _SEED_CACHE[key] = (now, data)
+    return data
+
+
+# --------------------------------------------------------------------------- #
 # HTTP server
 # --------------------------------------------------------------------------- #
 STATIC = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "application/javascript; charset=utf-8"),
+    "/footprint.js": ("footprint.js", "application/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
 }
 
@@ -282,6 +381,14 @@ class Handler(BaseHTTPRequestHandler):
                     int(arg("openTime", "0")),
                     arg("interval", "1m"),
                 )
+                return self._json(data)
+
+            if path == "/api/seed":
+                sym = arg("symbol", "BTCUSDT").upper()
+                itv = arg("interval", "1m")
+                cn = min(300, max(20, int(arg("candles", "90"))))
+                fp = min(40, max(4, int(arg("fp", "18"))))
+                data = _seed_cached(sym, itv, cn, fp)
                 return self._json(data)
 
             if path in STATIC:

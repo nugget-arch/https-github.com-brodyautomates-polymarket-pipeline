@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order Flow — BTC</title>
+  <title>Order Flow Terminal — BTC</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="dot"></span> ORDER&nbsp;FLOW
-      <small id="hdr-symbol">BTCUSDT · 1m</small>
+      <span id="conn" class="conn off" title="conexión"></span>
+      <span class="logo">ORDERFLOW<em>·TERMINAL</em></span>
+      <span id="hdr-symbol" class="hsym">BTCUSDT · 1m</span>
+      <span id="hdr-price" class="hprice">—</span>
+      <span id="hdr-chg" class="hchg">—</span>
     </div>
 
     <div class="controls">
@@ -20,6 +23,7 @@
           <option value="ETHUSDT">ETH/USDT</option>
           <option value="SOLUSDT">SOL/USDT</option>
           <option value="BNBUSDT">BNB/USDT</option>
+          <option value="XRPUSDT">XRP/USDT</option>
         </select>
       </label>
       <label>TF
@@ -28,58 +32,65 @@
           <option value="3m">3m</option>
           <option value="5m">5m</option>
           <option value="15m">15m</option>
-          <option value="1h">1h</option>
-          <option value="4h">4h</option>
         </select>
       </label>
       <label>Velas
         <select id="candles">
+          <option selected>18</option>
+          <option>28</option>
+          <option>40</option>
           <option>60</option>
-          <option selected>90</option>
-          <option>120</option>
-          <option>180</option>
         </select>
       </label>
-      <label class="chk"><input type="checkbox" id="auto" /> Auto 5s</label>
-      <button id="refresh">Actualizar</button>
+      <div class="toggles">
+        <button class="tg on" data-tg="numbers">Números</button>
+        <button class="tg on" data-tg="imbalance">Imbalance</button>
+        <button class="tg on" data-tg="absorption">Absorción</button>
+        <button class="tg on" data-tg="iceberg">Iceberg</button>
+      </div>
     </div>
   </header>
 
-  <section class="stats" id="stats">
-    <div class="stat"><span>Último</span><b id="s-last">—</b></div>
-    <div class="stat"><span>Δ acumulado</span><b id="s-delta">—</b></div>
-    <div class="stat"><span>vPOC</span><b id="s-vpoc">—</b></div>
-    <div class="stat"><span>VAH</span><b id="s-vah">—</b></div>
-    <div class="stat"><span>VAL</span><b id="s-val">—</b></div>
-    <div class="stat"><span>Volumen</span><b id="s-vol">—</b></div>
-  </section>
+  <div class="body">
+    <main class="stage">
+      <canvas id="chart"></canvas>
+      <div id="tooltip" class="tooltip hidden"></div>
+    </main>
 
-  <main class="stage">
-    <canvas id="chart"></canvas>
-    <div id="tooltip" class="tooltip hidden"></div>
-
-    <aside id="fp" class="footprint hidden">
-      <div class="fp-head">
-        <b id="fp-title">Footprint</b>
-        <button id="fp-close">×</button>
+    <aside class="side">
+      <div class="panel live">
+        <h3>Vela en curso</h3>
+        <div class="kv"><span>Precio</span><b id="l-price">—</b></div>
+        <div class="kv"><span>Delta</span><b id="l-delta">—</b></div>
+        <div class="kv"><span>Buy vol</span><b id="l-buy" class="pos">—</b></div>
+        <div class="kv"><span>Sell vol</span><b id="l-sell" class="neg">—</b></div>
+        <div class="kv"><span>CVD</span><b id="l-cvd">—</b></div>
+        <div class="kv"><span>vPOC / VAH / VAL</span><b id="l-va" class="small">—</b></div>
       </div>
-      <div id="fp-meta" class="fp-meta"></div>
-      <div id="fp-rows" class="fp-rows"></div>
-      <p class="fp-note">Buy/Sell reales por nivel de precio (aggTrades · lado agresor)</p>
+
+      <div class="panel signals">
+        <h3>Señales de order flow <span id="sig-count" class="badge">0</span></h3>
+        <div id="sig-list" class="sig-list"></div>
+      </div>
+
+      <div class="panel legend-panel">
+        <h3>Leyenda</h3>
+        <div class="lg"><i class="cell ask"></i> Ask (compra agresiva)</div>
+        <div class="lg"><i class="cell bid"></i> Bid (venta agresiva)</div>
+        <div class="lg"><i class="mk imb-b"></i> Imbalance compra (diagonal ≥300%)</div>
+        <div class="lg"><i class="mk imb-s"></i> Imbalance venta</div>
+        <div class="lg"><i class="mk stack"></i> Stacked imbalance (≥3)</div>
+        <div class="lg"><i class="mk absorb"></i> Absorción</div>
+        <div class="lg"><i class="mk ice"></i> Iceberg (refill oculto)</div>
+      </div>
     </aside>
-  </main>
+  </div>
 
   <footer class="foot">
     <span id="status">Cargando…</span>
-    <span class="legend">
-      <i class="sw buy"></i> agresor comprador &nbsp;
-      <i class="sw sell"></i> agresor vendedor &nbsp;
-      <i class="sw poc"></i> vPOC &nbsp;
-      <i class="sw va"></i> value area (70%)
-    </span>
-    <span>Datos: Binance · <em>prototipo</em></span>
+    <span class="src">Datos en vivo: Binance WebSocket · <em>prototipo</em></span>
   </footer>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
