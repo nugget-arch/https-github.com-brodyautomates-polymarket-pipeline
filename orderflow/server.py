@@ -339,6 +339,7 @@ STATIC = {
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "application/javascript; charset=utf-8"),
     "/footprint.js": ("footprint.js", "application/javascript; charset=utf-8"),
+    "/orderbook.js": ("orderbook.js", "application/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
 }
 
@@ -390,6 +391,17 @@ class Handler(BaseHTTPRequestHandler):
                 fp = min(40, max(4, int(arg("fp", "18"))))
                 data = _seed_cached(sym, itv, cn, fp)
                 return self._json(data)
+
+            if path == "/api/depth":
+                raw = _get("/api/v3/depth", {
+                    "symbol": arg("symbol", "BTCUSDT").upper(),
+                    "limit": min(100, max(5, int(arg("limit", "50")))),
+                })
+                return self._json({
+                    "lastUpdateId": raw.get("lastUpdateId", 0),
+                    "bids": [[float(p), float(q)] for p, q in raw.get("bids", [])],
+                    "asks": [[float(p), float(q)] for p, q in raw.get("asks", [])],
+                })
 
             if path in STATIC:
                 fname, ctype = STATIC[path]

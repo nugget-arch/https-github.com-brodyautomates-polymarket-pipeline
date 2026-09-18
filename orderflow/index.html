@@ -36,17 +36,21 @@
       </label>
       <label>Velas
         <select id="candles">
-          <option selected>18</option>
-          <option>28</option>
           <option>40</option>
-          <option>60</option>
+          <option selected>60</option>
+          <option>90</option>
+          <option>120</option>
         </select>
       </label>
+      <div class="seg" id="mode-seg">
+        <button class="sg on" data-mode="chart">Velas</button>
+        <button class="sg" data-mode="footprint">Footprint</button>
+      </div>
       <div class="toggles">
-        <button class="tg on" data-tg="numbers">Números</button>
-        <button class="tg on" data-tg="imbalance">Imbalance</button>
-        <button class="tg on" data-tg="absorption">Absorción</button>
-        <button class="tg on" data-tg="iceberg">Iceberg</button>
+        <button class="tg on" data-tg="profile">Perfil</button>
+        <button class="tg on" data-tg="vwap">VWAP</button>
+        <button class="tg on" data-tg="depth">L2 Depth</button>
+        <button class="tg on" data-tg="bubbles">Delta</button>
       </div>
     </div>
   </header>
@@ -58,37 +62,32 @@
     </main>
 
     <aside class="side">
+      <div class="panel book">
+        <h3>Order Book <span class="tag">L2</span>
+          <span id="ob-imb" class="imb">—</span>
+        </h3>
+        <div id="ladder" class="ladder"><div class="sig-empty">Esperando order book…</div></div>
+      </div>
+
       <div class="panel live">
         <h3>Vela en curso</h3>
-        <div class="kv"><span>Precio</span><b id="l-price">—</b></div>
         <div class="kv"><span>Delta</span><b id="l-delta">—</b></div>
-        <div class="kv"><span>Buy vol</span><b id="l-buy" class="pos">—</b></div>
-        <div class="kv"><span>Sell vol</span><b id="l-sell" class="neg">—</b></div>
+        <div class="kv"><span>Buy / Sell</span><b id="l-bs" class="small">—</b></div>
         <div class="kv"><span>CVD</span><b id="l-cvd">—</b></div>
         <div class="kv"><span>vPOC / VAH / VAL</span><b id="l-va" class="small">—</b></div>
+        <div class="kv"><span>Bid / Ask depth</span><b id="l-depth" class="small">—</b></div>
       </div>
 
       <div class="panel signals">
-        <h3>Señales de order flow <span id="sig-count" class="badge">0</span></h3>
+        <h3>Señales <span id="sig-count" class="badge">0</span></h3>
         <div id="sig-list" class="sig-list"></div>
-      </div>
-
-      <div class="panel legend-panel">
-        <h3>Leyenda</h3>
-        <div class="lg"><i class="cell ask"></i> Ask (compra agresiva)</div>
-        <div class="lg"><i class="cell bid"></i> Bid (venta agresiva)</div>
-        <div class="lg"><i class="mk imb-b"></i> Imbalance compra (diagonal ≥300%)</div>
-        <div class="lg"><i class="mk imb-s"></i> Imbalance venta</div>
-        <div class="lg"><i class="mk stack"></i> Stacked imbalance (≥3)</div>
-        <div class="lg"><i class="mk absorb"></i> Absorción</div>
-        <div class="lg"><i class="mk ice"></i> Iceberg (refill oculto)</div>
       </div>
     </aside>
   </div>
 
   <footer class="foot">
     <span id="status">Cargando…</span>
-    <span class="src">Datos en vivo: Binance WebSocket · <em>prototipo</em></span>
+    <span class="src">L2 order book + trades en vivo: Binance · <em>prototipo</em></span>
   </footer>
 
   <script type="module" src="app.js"></script>
